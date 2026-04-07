@@ -15,8 +15,9 @@ echo "  Dir: $APP_DIR"
 echo "  Time: $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "═══════════════════════════════════════════"
 
-# Ensure logs directory exists
 mkdir -p "$LOG_DIR"
+mkdir -p "$APP_DIR/backend/uploads/logos"
+mkdir -p "$APP_DIR/backend/uploads/signatures"
 
 # ── 1. Pull latest code ─────────────────────────────────
 echo ""
@@ -28,7 +29,7 @@ git pull --ff-only origin main
 echo ""
 echo "▶ [2/5] Installing backend dependencies..."
 cd "$APP_DIR/backend"
-npm ci --production --ignore-scripts
+npm ci --omit=dev
 
 # ── 3. Install frontend deps & build ────────────────────
 echo ""

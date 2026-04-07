@@ -138,6 +138,24 @@ function buildInvoiceHtml({ invoice, items }) {
 </html>`;
 }
 
+function findChromePath() {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    return process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+  const fs = require('fs');
+  const candidates = [
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  return undefined;
+}
+
 async function generateInvoicePdf(invoiceData) {
   let puppeteer;
   try {
@@ -148,26 +166,12 @@ async function generateInvoicePdf(invoiceData) {
 
   const html = buildInvoiceHtml(invoiceData);
 
-  const launchOptions = { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] };
-
-  // Try to find Chrome on the system for puppeteer-core
-  if (puppeteer.executablePath && typeof puppeteer.executablePath === 'function') {
-    try {
-      launchOptions.executablePath = puppeteer.executablePath();
-    } catch {
-      // On macOS, try common Chrome paths
-      const { execSync } = require('child_process');
-      try {
-        const chromePath = execSync('which google-chrome-stable || which google-chrome || which chromium-browser || echo ""').toString().trim();
-        if (chromePath) launchOptions.executablePath = chromePath;
-      } catch {
-        // Fallback to common macOS path
-        const fs = require('fs');
-        const macChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-        if (fs.existsSync(macChrome)) launchOptions.executablePath = macChrome;
-      }
-    }
-  }
+  const executablePath = findChromePath();
+  const launchOptions = {
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
+    ...(executablePath && { executablePath }),
+  };
 
   const browser = await puppeteer.launch(launchOptions);
   try {
