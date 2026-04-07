@@ -177,7 +177,10 @@ export default function AppLayout({ children }) {
     <div className="min-h-screen bg-muted">
       <header className="sticky top-0 z-30 bg-card border-b border-border px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-6">
-          <h1 className="text-lg font-bold">Vehicle ERP</h1>
+          <div className="flex items-center gap-2">
+            <img src="/assets/mvg-logo.png" alt="MVG" className="h-8 object-contain" />
+            <span className="text-lg font-bold hidden sm:inline">MVG ERP</span>
+          </div>
           <nav className="hidden md:flex items-center gap-1">
             {navItems
               .filter(({ adminOnly }) => !adminOnly || ['super_admin', 'company_admin'].includes(user?.role))

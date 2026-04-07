@@ -48,9 +48,9 @@ async function seed() {
     // ── 1. Company ────────────────────────────────────────
     const { rows: [company] } = await client.query(
       `INSERT INTO companies (name, gstin, address, phone, email, state_code, default_hsn_code, default_gst_rate)
-       VALUES ('Demo Motors Pvt Ltd', '27AABCD1234E1Z5',
+       VALUES ('Mavidya Group - Pradeep Guru Company', '27AABCD1234E1Z5',
                'Plot 42, Industrial Estate, Mapusa, Goa 403507',
-               '9876543210', 'info@demomotors.com', '30', '8703', 28.00)
+               '9876543210', 'info@mavidyagroup.com', '30', '8703', 28.00)
        RETURNING id`,
     );
     const companyId = company.id;
@@ -61,14 +61,14 @@ async function seed() {
     // ── 2. Branches ───────────────────────────────────────
     const { rows: [mapusa] } = await client.query(
       `INSERT INTO branches (company_id, name, address, phone)
-       VALUES ($1, 'Mapusa Branch', 'Shop 5, Municipal Market Road, Mapusa, Goa 403507', '9876543211')
+       VALUES ($1, 'MVG Mapusa', 'Shop 5, Municipal Market Road, Mapusa, Goa 403507', '9876543211')
        RETURNING id`,
       [companyId],
     );
 
     const { rows: [panaji] } = await client.query(
       `INSERT INTO branches (company_id, name, address, phone)
-       VALUES ($1, 'Panaji Branch', '18th June Road, Near Old Secretariat, Panaji, Goa 403001', '9876543212')
+       VALUES ($1, 'MVG Panaji', '18th June Road, Near Old Secretariat, Panaji, Goa 403001', '9876543212')
        RETURNING id`,
       [companyId],
     );
@@ -270,13 +270,13 @@ async function seed() {
 
     console.log('');
     console.log('  ╔═══════════════════════════════════════════════════════╗');
-    console.log('  ║            ✓ Seed Complete — Demo Motors              ║');
+    console.log('  ║         ✓ Seed Complete — Mavidya Group (MVG)         ║');
     console.log('  ╠═══════════════════════════════════════════════════════╣');
     console.log('  ║                                                       ║');
-    console.log('  ║  Company : Demo Motors Pvt Ltd                        ║');
+    console.log('  ║  Company : Mavidya Group - Pradeep Guru Company       ║');
     console.log('  ║  GSTIN   : 27AABCD1234E1Z5                           ║');
     console.log('  ║                                                       ║');
-    console.log('  ║  Branches: Mapusa Branch, Panaji Branch               ║');
+    console.log('  ║  Branches: MVG Mapusa, MVG Panaji                     ║');
     console.log('  ║  Vehicles: 10 (8 in stock, 2 sold)                   ║');
     console.log('  ║  Invoices: 2 confirmed                               ║');
     console.log('  ║  Loans   : 1 overdue                                 ║');
@@ -286,10 +286,10 @@ async function seed() {
     console.log('  ║  Login Credentials (all use password: Demo@1234)      ║');
     console.log('  ╠═══════════════════════════════════════════════════════╣');
     console.log('  ║  admin@demo.com    → company_admin                    ║');
-    console.log('  ║  manager1@demo.com → branch_manager (Mapusa)          ║');
-    console.log('  ║  manager2@demo.com → branch_manager (Panaji)          ║');
-    console.log('  ║  staff1@demo.com   → staff (Mapusa)                   ║');
-    console.log('  ║  staff2@demo.com   → staff (Panaji)                   ║');
+    console.log('  ║  manager1@demo.com → branch_manager (MVG Mapusa)      ║');
+    console.log('  ║  manager2@demo.com → branch_manager (MVG Panaji)      ║');
+    console.log('  ║  staff1@demo.com   → staff (MVG Mapusa)               ║');
+    console.log('  ║  staff2@demo.com   → staff (MVG Panaji)               ║');
     console.log('  ║                                                       ║');
     console.log('  ╚═══════════════════════════════════════════════════════╝');
     console.log('');

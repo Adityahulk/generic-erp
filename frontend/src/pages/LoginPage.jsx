@@ -34,11 +34,15 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted px-4">
+    <div className="min-h-screen flex items-center justify-center bg-zinc-950 px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">Vehicle ERP</h1>
-          <p className="text-muted-foreground mt-1">Distribution Management System</p>
+          <img
+            src="/assets/mvg-logo.png"
+            alt="Mavidya Group"
+            className="h-24 mx-auto mb-4 object-contain"
+          />
+          <p className="text-zinc-400 text-sm">Vehicle Distribution ERP</p>
         </div>
 
         <Card>
