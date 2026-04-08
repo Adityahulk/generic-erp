@@ -68,7 +68,7 @@ function buildInvoiceHtml({ invoice, items }) {
       ${inv.company_gstin ? `<p><strong>GSTIN: ${inv.company_gstin}</strong></p>` : ''}
     </div>
     <div class="invoice-meta">
-      <h2>TAX INVOICE</h2>
+      <h2>${inv.irn ? 'e-INVOICE' : 'TAX INVOICE'}</h2>
       <p><strong>Invoice #:</strong> ${inv.invoice_number}</p>
       <p><strong>Date:</strong> ${formatDate(inv.invoice_date)}</p>
       <p><strong>Status:</strong> ${inv.status.toUpperCase()}</p>
@@ -126,8 +126,23 @@ function buildInvoiceHtml({ invoice, items }) {
 
   ${inv.notes ? `<p style="margin-bottom:16px;color:#555"><strong>Notes:</strong> ${inv.notes}</p>` : ''}
 
+  ${inv.irn ? `
+  <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:10px 14px;margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <p style="font-size:10px;text-transform:uppercase;color:#16a34a;font-weight:600;letter-spacing:0.5px;margin-bottom:4px;">E-Invoice (IRN)</p>
+        <p style="font-size:11px;font-family:monospace;word-break:break-all;color:#333;">${inv.irn}</p>
+        ${inv.ack_number ? `<p style="font-size:10px;color:#555;margin-top:3px;">Ack No: ${inv.ack_number} | Ack Date: ${formatDate(inv.ack_date)}</p>` : ''}
+      </div>
+      ${inv.signed_qr ? `
+      <div style="margin-left:12px;flex-shrink:0;">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(inv.signed_qr)}" style="width:90px;height:90px;" />
+      </div>` : ''}
+    </div>
+  </div>` : ''}
+
   <div class="footer">
-    <div class="qr-placeholder">QR Code</div>
+    ${!inv.irn ? '<div class="qr-placeholder">QR Code</div>' : '<div></div>'}
     <div class="signature">
       ${inv.signature_url ? `<img src="${inv.signature_url}" />` : '<div style="height:40px"></div>'}
       <p style="border-top:1px solid #333;padding-top:4px;font-size:11px">Authorized Signatory</p>

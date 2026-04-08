@@ -14,8 +14,9 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Plus, Loader2, Search, FileText, Download, X, ChevronLeft, ChevronRight,
-  Check, ArrowRight, ArrowLeft, Trash2, Ban,
+  Check, ArrowRight, ArrowLeft, Trash2, Ban, ShieldCheck, ShieldX,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import api from '@/lib/api';
 import useAuthStore from '@/store/authStore';
@@ -438,6 +439,12 @@ export default function SalesPage() {
     return () => clearTimeout(t);
   }, [debouncedSearch]);
 
+  const { data: eInvoiceStatus } = useQuery({
+    queryKey: ['einvoice-status'],
+    queryFn: () => api.get('/invoices/einvoice/status').then((r) => r.data),
+    staleTime: 60 * 60 * 1000,
+  });
+
   const cancelMutation = useMutation({
     mutationFn: (id) => api.patch(`/invoices/${id}/cancel`),
     onSuccess: () => {
@@ -452,6 +459,24 @@ export default function SalesPage() {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
     },
+  });
+
+  const generateEInvoiceMutation = useMutation({
+    mutationFn: (id) => api.post(`/invoices/${id}/einvoice/generate`),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      toast.success(`E-Invoice generated! IRN: ${res.data?.data?.irn?.substring(0, 20)}...`);
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'E-Invoice generation failed'),
+  });
+
+  const cancelEInvoiceMutation = useMutation({
+    mutationFn: (id) => api.post(`/invoices/${id}/einvoice/cancel`, { reason: '2', remark: 'Data entry mistake' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      toast.success('E-Invoice IRN cancelled');
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'E-Invoice cancellation failed'),
   });
 
   const downloadPdf = async (invoiceId, invoiceNumber) => {
@@ -507,6 +532,7 @@ export default function SalesPage() {
               <TableHead>Customer</TableHead>
               <TableHead>Vehicle</TableHead>
               <TableHead>Status</TableHead>
+              {eInvoiceStatus?.enabled && <TableHead>e-Invoice</TableHead>}
               <TableHead className="text-right">Total</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -514,13 +540,13 @@ export default function SalesPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12">
+                <TableCell colSpan={eInvoiceStatus?.enabled ? 8 : 7} className="text-center py-12">
                   <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                 </TableCell>
               </TableRow>
             ) : invoices.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No invoices found</TableCell>
+                <TableCell colSpan={eInvoiceStatus?.enabled ? 8 : 7} className="text-center py-12 text-muted-foreground">No invoices found</TableCell>
               </TableRow>
             ) : (
               invoices.map((inv) => (
@@ -539,12 +565,46 @@ export default function SalesPage() {
                   <TableCell>
                     <Badge variant={INV_STATUS_BADGE[inv.status]}>{inv.status}</Badge>
                   </TableCell>
+                  {eInvoiceStatus?.enabled && (
+                    <TableCell>
+                      {inv.irn_status === 'generated' && (
+                        <Badge variant="success" className="gap-1">
+                          <ShieldCheck className="h-3 w-3" /> IRN
+                        </Badge>
+                      )}
+                      {inv.irn_status === 'cancelled' && (
+                        <Badge variant="destructive" className="gap-1 text-[10px]">
+                          <ShieldX className="h-3 w-3" /> Cancelled
+                        </Badge>
+                      )}
+                      {inv.irn_status === 'failed' && (
+                        <Badge variant="destructive" className="text-[10px]">Failed</Badge>
+                      )}
+                      {(!inv.irn_status || inv.irn_status === 'pending') && inv.status === 'confirmed' && (
+                        <span className="text-xs text-muted-foreground">Pending</span>
+                      )}
+                    </TableCell>
+                  )}
                   <TableCell className="text-right font-mono">{formatCurrency(inv.total)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
                       {inv.status === 'confirmed' && (
                         <Button variant="ghost" size="sm" onClick={() => downloadPdf(inv.id, inv.invoice_number)} title="Download PDF">
                           <Download className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      {eInvoiceStatus?.enabled && inv.status === 'confirmed' && (!inv.irn_status || inv.irn_status === 'pending' || inv.irn_status === 'failed') && canManage && (
+                        <Button variant="ghost" size="sm" title="Generate e-Invoice (IRN)"
+                          onClick={() => { if (window.confirm('Generate e-Invoice for this invoice?')) generateEInvoiceMutation.mutate(inv.id); }}
+                          disabled={generateEInvoiceMutation.isPending}>
+                          <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                        </Button>
+                      )}
+                      {eInvoiceStatus?.enabled && inv.irn_status === 'generated' && canManage && (
+                        <Button variant="ghost" size="sm" title="Cancel e-Invoice IRN"
+                          onClick={() => { if (window.confirm('Cancel the e-Invoice IRN? This is only possible within 24 hours.')) cancelEInvoiceMutation.mutate(inv.id); }}
+                          disabled={cancelEInvoiceMutation.isPending}>
+                          <ShieldX className="h-3.5 w-3.5 text-amber-600" />
                         </Button>
                       )}
                       {inv.status === 'draft' && (
