@@ -58,6 +58,7 @@ const transferSchema = z.object({
 
 router.get('/', vc.listVehicles);
 router.post('/', validateBody(createVehicleSchema), vc.createVehicle);
+router.get('/check-chassis', vc.checkChassisAvailable);
 router.get('/search', vc.searchVehicles);
 router.get('/expiring-insurance', requireMinRole('branch_manager'), vc.expiringInsurance);
 router.get('/inventory/summary', requireMinRole('branch_manager'), vc.inventorySummary);

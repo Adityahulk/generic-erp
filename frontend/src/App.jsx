@@ -14,6 +14,10 @@ import ReportsPage from './pages/ReportsPage';
 import AttendancePage from './pages/AttendancePage';
 import VehicleDetailPage from './pages/VehicleDetailPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
+import PurchaseList from './pages/purchases/PurchaseList';
+import PurchaseForm from './pages/purchases/PurchaseForm';
+import PurchaseDetail from './pages/purchases/PurchaseDetail';
+import PurchaseReceive from './pages/purchases/PurchaseReceive';
 import useAuthStore from './store/authStore';
 
 function DefaultRedirect() {
@@ -55,6 +59,11 @@ export default function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/inventory" element={<InventoryPage />} />
               <Route path="/vehicles/:id" element={<VehicleDetailPage />} />
+              <Route path="/purchases/new" element={<PurchaseForm />} />
+              <Route path="/purchases/:id/edit" element={<PurchaseForm />} />
+              <Route path="/purchases/:id/receive" element={<PurchaseReceive />} />
+              <Route path="/purchases/:id" element={<PurchaseDetail />} />
+              <Route path="/purchases" element={<PurchaseList />} />
               <Route path="/loans" element={<LoansPage />} />
               <Route path="/expenses" element={<ExpensesPage />} />
             </Route>

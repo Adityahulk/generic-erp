@@ -13,7 +13,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import EmptyState from '@/components/EmptyState';
 import SortableTableHead, { sortData } from '@/components/SortableTableHead';
-import { Plus, ArrowRightLeft, Loader2, Search, ChevronLeft, ChevronRight, Car } from 'lucide-react';
+import { Plus, ArrowRightLeft, Loader2, Search, ChevronLeft, ChevronRight, Car, Upload } from 'lucide-react';
+import BulkImport from '@/components/BulkImport';
 import { Link } from 'react-router-dom';
 import { formatCurrency } from '@/lib/utils';
 import api from '@/lib/api';
@@ -258,7 +259,9 @@ function TransferDialog({ open, onOpenChange, vehicle, branches }) {
 
 export default function InventoryPage() {
   const user = useAuthStore((s) => s.user);
+  const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [sortKey, setSortKey] = useState('');
@@ -299,10 +302,22 @@ export default function InventoryPage() {
     <AppLayout>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h2 className="text-2xl font-semibold">Inventory</h2>
-        <Button onClick={() => setAddOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Add Vehicle
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" /> Import
+          </Button>
+          <Button onClick={() => setAddOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" /> Add Vehicle
+          </Button>
+        </div>
       </div>
+
+      <BulkImport
+        type="vehicles"
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['vehicles'] })}
+      />
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-4">

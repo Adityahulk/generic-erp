@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import useAuthStore from '@/store/authStore';
 import {
   LayoutDashboard, Car, FileText, Landmark, Receipt,
-  BarChart3, Clock, Settings, LogOut, Search, X, Loader2, Menu,
+  BarChart3, Clock, Settings, LogOut, Search, X, Loader2, Menu, ShoppingBag,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
@@ -13,6 +13,7 @@ import api from '@/lib/api';
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, hideFor: ['ca', 'staff'] },
   { to: '/inventory', label: 'Inventory', icon: Car, hideFor: ['ca', 'staff'] },
+  { to: '/purchases', label: 'Purchases', icon: ShoppingBag, hideFor: ['ca', 'staff'] },
   { to: '/sales', label: 'Invoices', icon: FileText, onlyFor: ['ca'] },
   { to: '/sales', label: 'Sales', icon: FileText, hideFor: ['ca', 'staff'] },
   { to: '/loans', label: 'Loans', icon: Landmark, hideFor: ['ca', 'staff'] },

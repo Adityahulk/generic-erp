@@ -424,8 +424,18 @@ async function branchInventory(req, res) {
   res.json({ branch: branchCheck.rows[0], vehicles: rows });
 }
 
+async function checkChassisAvailable(req, res) {
+  const chassis = String(req.query.chassis_number || '').trim();
+  if (!chassis) return res.status(400).json({ error: 'chassis_number query parameter is required' });
+  const { rows } = await query(
+    `SELECT id FROM vehicles WHERE chassis_number = $1 AND company_id = $2 AND is_deleted = FALSE`,
+    [chassis, req.user.company_id],
+  );
+  res.json({ available: rows.length === 0 });
+}
+
 module.exports = {
   listVehicles, createVehicle, getVehicle, updateVehicle,
   transferVehicle, inventorySummary, branchInventory,
-  searchVehicles, expiringInsurance,
+  searchVehicles, expiringInsurance, checkChassisAvailable,
 };

@@ -203,4 +203,138 @@ async function generateInvoicePdf(invoiceData) {
   }
 }
 
-module.exports = { generateInvoicePdf, buildInvoiceHtml };
+function buildPurchaseOrderHtml({ purchase_order: po, items }) {
+  const hasIgst = items.some((i) => Number(i.igst_amount) > 0);
+  const itemRows = items.map((item, idx) => `
+    <tr>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${idx + 1}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee">${item.description}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${item.hsn_code || ''}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:center">${item.quantity}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">₹${formatPaise(item.unit_price)}</td>
+      ${hasIgst
+        ? `<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">${Number(item.igst_rate)}%<br/>₹${formatPaise(item.igst_amount)}</td>`
+        : `<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">${Number(item.cgst_rate)}%<br/>₹${formatPaise(item.cgst_amount)}</td>
+           <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">${Number(item.sgst_rate)}%<br/>₹${formatPaise(item.sgst_amount)}</td>`
+      }
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:600">₹${formatPaise(item.amount)}</td>
+    </tr>
+  `).join('');
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; color:#1a1a1a; font-size:12px; padding:30px; }
+  .header { display:flex; justify-content:space-between; margin-bottom:20px; border-bottom:3px solid #0f766e; padding-bottom:15px; }
+  .company-info h1 { font-size:20px; color:#0f766e; margin-bottom:4px; }
+  .company-info p { color:#555; line-height:1.5; }
+  .po-meta { text-align:right; }
+  .po-meta h2 { font-size:22px; color:#0f766e; margin-bottom:8px; }
+  .parties { display:flex; justify-content:space-between; margin-bottom:20px; }
+  .party-box { width:48%; padding:12px; background:#f8f9fa; border-radius:6px; }
+  .party-box h3 { font-size:11px; text-transform:uppercase; color:#888; margin-bottom:6px; }
+  table { width:100%; border-collapse:collapse; margin-bottom:16px; }
+  th { background:#0f766e; color:#fff; padding:8px; text-align:left; font-size:11px; text-transform:uppercase; }
+  .totals { display:flex; justify-content:flex-end; margin-bottom:24px; }
+  .totals-table { width:280px; }
+  .totals-table td { padding:4px 8px; }
+  .totals-table .grand-total td { font-size:14px; font-weight:700; border-top:2px solid #0f766e; padding-top:8px; color:#0f766e; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="company-info">
+      ${po.company_logo_url ? `<img src="${po.company_logo_url}" style="max-height:45px;margin-bottom:6px;" />` : ''}
+      <h1>${po.company_name || 'Company'}</h1>
+      <p>${po.company_address || ''}</p>
+      <p>Phone: ${po.company_phone || ''} | Email: ${po.company_email || ''}</p>
+      ${po.company_gstin ? `<p><strong>GSTIN: ${po.company_gstin}</strong></p>` : ''}
+    </div>
+    <div class="po-meta">
+      <h2>PURCHASE ORDER</h2>
+      <p><strong>PO #:</strong> ${po.po_number}</p>
+      <p><strong>Date:</strong> ${formatDate(po.order_date)}</p>
+      ${po.expected_delivery_date ? `<p><strong>Expected delivery:</strong> ${formatDate(po.expected_delivery_date)}</p>` : ''}
+      <p><strong>Status:</strong> ${String(po.status || '').toUpperCase()}</p>
+    </div>
+  </div>
+  <div class="parties">
+    <div class="party-box">
+      <h3>Supplier</h3>
+      <p><strong>${po.supplier_name || ''}</strong></p>
+      <p>${po.supplier_address || ''}</p>
+      <p>${po.supplier_phone ? 'Phone: ' + po.supplier_phone : ''}</p>
+      ${po.supplier_gstin ? `<p><strong>GSTIN: ${po.supplier_gstin}</strong></p>` : ''}
+    </div>
+    <div class="party-box">
+      <h3>Ship to branch</h3>
+      <p><strong>${po.branch_name || ''}</strong></p>
+      <p>${po.branch_address || ''}</p>
+      <p>${po.branch_phone ? 'Phone: ' + po.branch_phone : ''}</p>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:5%;text-align:center">#</th>
+        <th style="width:30%">Description</th>
+        <th style="width:10%;text-align:center">HSN</th>
+        <th style="width:8%;text-align:center">Qty</th>
+        <th style="width:12%;text-align:right">Unit Price</th>
+        ${hasIgst ? '<th style="width:15%;text-align:right">IGST</th>' : '<th style="width:12%;text-align:right">CGST</th><th style="width:12%;text-align:right">SGST</th>'}
+        <th style="width:15%;text-align:right">Amount</th>
+      </tr>
+    </thead>
+    <tbody>${itemRows}</tbody>
+  </table>
+  <div class="totals">
+    <table class="totals-table">
+      <tr><td>Subtotal</td><td style="text-align:right">₹${formatPaise(po.subtotal)}</td></tr>
+      ${Number(po.discount) > 0 ? `<tr><td>Discount</td><td style="text-align:right;color:#dc2626">- ₹${formatPaise(po.discount)}</td></tr>` : ''}
+      ${Number(po.cgst_amount) > 0 ? `<tr><td>CGST</td><td style="text-align:right">₹${formatPaise(po.cgst_amount)}</td></tr>` : ''}
+      ${Number(po.sgst_amount) > 0 ? `<tr><td>SGST</td><td style="text-align:right">₹${formatPaise(po.sgst_amount)}</td></tr>` : ''}
+      ${Number(po.igst_amount) > 0 ? `<tr><td>IGST</td><td style="text-align:right">₹${formatPaise(po.igst_amount)}</td></tr>` : ''}
+      ${Number(po.tcs_amount) > 0 ? `<tr><td>TCS</td><td style="text-align:right">₹${formatPaise(po.tcs_amount)}</td></tr>` : ''}
+      <tr class="grand-total"><td>Total</td><td style="text-align:right">₹${formatPaise(po.total)}</td></tr>
+    </table>
+  </div>
+  ${po.notes ? `<p style="color:#555"><strong>Notes:</strong> ${po.notes}</p>` : ''}
+</body>
+</html>`;
+}
+
+async function generatePurchaseOrderPdf(poData) {
+  let puppeteer;
+  try {
+    puppeteer = require('puppeteer');
+  } catch {
+    puppeteer = require('puppeteer-core');
+  }
+  const html = buildPurchaseOrderHtml(poData);
+  const executablePath = findChromePath();
+  const launchOptions = {
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
+    ...(executablePath && { executablePath }),
+  };
+  const browser = await puppeteer.launch(launchOptions);
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '15mm', right: '10mm', bottom: '15mm', left: '10mm' },
+    });
+    return Buffer.from(pdfBuffer);
+  } finally {
+    await browser.close();
+  }
+}
+
+module.exports = {
+  generateInvoicePdf, buildInvoiceHtml, generatePurchaseOrderPdf, buildPurchaseOrderHtml,
+};

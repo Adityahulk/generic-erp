@@ -37,6 +37,10 @@ async function seed() {
       await client.query(`DELETE FROM quotations WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM expenses WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM vehicle_transfers WHERE company_id = $1`, [cid]);
+      await client.query(`UPDATE vehicles SET purchase_order_id = NULL WHERE company_id = $1`, [cid]);
+      await client.query(`DELETE FROM purchase_receipts WHERE company_id = $1`, [cid]);
+      await client.query(`DELETE FROM purchase_orders WHERE company_id = $1`, [cid]);
+      await client.query(`DELETE FROM suppliers WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM vehicles WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM customers WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM refresh_tokens WHERE company_id = $1`, [cid]);
@@ -63,15 +67,15 @@ async function seed() {
 
     // ── 2. Branches ───────────────────────────────────────
     const { rows: [mapusa] } = await client.query(
-      `INSERT INTO branches (company_id, name, address, phone)
-       VALUES ($1, 'MVG Mapusa', 'Shop 5, Municipal Market Road, Mapusa, Goa 403507', '9876543211')
+      `INSERT INTO branches (company_id, name, code, address, phone)
+       VALUES ($1, 'MVG Mapusa', 'MAP', 'Shop 5, Municipal Market Road, Mapusa, Goa 403507', '9876543211')
        RETURNING id`,
       [companyId],
     );
 
     const { rows: [panaji] } = await client.query(
-      `INSERT INTO branches (company_id, name, address, phone)
-       VALUES ($1, 'MVG Panaji', '18th June Road, Near Old Secretariat, Panaji, Goa 403001', '9876543212')
+      `INSERT INTO branches (company_id, name, code, address, phone)
+       VALUES ($1, 'MVG Panaji', 'PAN', '18th June Road, Near Old Secretariat, Panaji, Goa 403001', '9876543212')
        RETURNING id`,
       [companyId],
     );

@@ -14,8 +14,9 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Plus, Loader2, Search, FileText, Download, X, ChevronLeft, ChevronRight,
-  Check, ArrowRight, ArrowLeft, Trash2, Ban, ShieldCheck, ShieldX,
+  Check, ArrowRight, ArrowLeft, Trash2, Ban, ShieldCheck, ShieldX, Upload,
 } from 'lucide-react';
+import BulkImport from '@/components/BulkImport';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import api from '@/lib/api';
@@ -418,6 +419,7 @@ export default function SalesPage() {
   const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
   const [saleOpen, setSaleOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [filters, setFilters] = useState({ page: 1, limit: 25, status: '', customer_search: '' });
   const [searchInput, setSearchInput] = useState('');
   const { data: branches } = useBranches();
@@ -502,11 +504,28 @@ export default function SalesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h2 className="text-2xl font-semibold">Sales & Invoices</h2>
         {canManage && (
-          <Button onClick={() => setSaleOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> New Sale
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" /> Import
+            </Button>
+            <Button onClick={() => setSaleOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" /> New Sale
+            </Button>
+          </div>
         )}
       </div>
+
+      {canManage && (
+        <BulkImport
+          type="sales"
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['invoices'] });
+            queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+          }}
+        />
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
