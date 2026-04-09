@@ -1,3 +1,7 @@
+networks:
+  erp:
+    driver: bridge
+
 services:
 
   postgres:
@@ -8,6 +12,7 @@ services:
       POSTGRES_USER: ${DB_USER:-erp_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
       POSTGRES_DB: ${DB_NAME:-vehicle_erp}
+    networks: [erp]
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -21,6 +26,7 @@ services:
     container_name: vehicle_erp_redis
     restart: unless-stopped
     command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    networks: [erp]
     volumes:
       - redisdata:/data
     healthcheck:
@@ -33,6 +39,7 @@ services:
     build: ./backend
     container_name: vehicle_erp_api
     restart: unless-stopped
+    networks: [erp]
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,6 +74,7 @@ services:
     build: ./backend
     container_name: vehicle_erp_worker
     restart: unless-stopped
+    networks: [erp]
     entrypoint: ["node"]
     command: ["src/worker.js"]
     depends_on:
@@ -88,11 +96,13 @@ services:
     build: ./frontend
     container_name: vehicle_erp_frontend
     restart: unless-stopped
+    networks: [erp]
 
   nginx:
     image: nginx:alpine
     container_name: vehicle_erp_nginx
     restart: unless-stopped
+    networks: [erp]
     ports:
       - "80:80"
     volumes:
