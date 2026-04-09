@@ -86,9 +86,11 @@ const { scheduleReminderJobs } = require('./jobs/reminderJob');
 scheduleReminderJobs().catch((err) => console.error('Failed to schedule reminder jobs:', err.message));
 
 // --------------- Start Server ---------------
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`Vehicle ERP API running on port ${PORT}`);
+const PORT = Number(process.env.PORT) || 4000;
+// Bind all interfaces so other containers (e.g. nginx) can reach the API — required for Docker.
+const HOST = process.env.LISTEN_HOST || '0.0.0.0';
+app.listen(PORT, HOST, () => {
+  console.log(`Vehicle ERP API listening on http://${HOST}:${PORT}`);
 });
 
 module.exports = app;

@@ -39,6 +39,8 @@ async function seed() {
       await client.query(`DELETE FROM vehicles WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM customers WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM refresh_tokens WHERE company_id = $1`, [cid]);
+      await client.query(`DELETE FROM audit_logs WHERE company_id = $1`, [cid]);
+      await client.query(`DELETE FROM einvoice_tokens WHERE company_id = $1`, [cid]);
       await client.query(`UPDATE branches SET manager_id = NULL WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM users WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM branches WHERE company_id = $1`, [cid]);
