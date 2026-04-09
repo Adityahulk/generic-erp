@@ -18,8 +18,9 @@ import useAuthStore from './store/authStore';
 
 function DefaultRedirect() {
   const { user } = useAuthStore();
-  const target = user?.role === 'ca' ? '/reports' : '/dashboard';
-  return <Navigate to={target} replace />;
+  if (user?.role === 'ca') return <Navigate to="/reports" replace />;
+  if (user?.role === 'staff') return <Navigate to="/attendance" replace />;
+  return <Navigate to="/dashboard" replace />;
 }
 
 const queryClient = new QueryClient({
@@ -42,23 +43,26 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
-            {/* CA-accessible routes — invoices (read-only) + reports */}
-            <Route element={<ProtectedRoute />}>
-              <Route path="/sales" element={<SalesPage />} />
+            <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'ca']} />}>
               <Route path="/reports" element={<ReportsPage />} />
             </Route>
 
-            {/* Operational routes — all except CA */}
-            <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager', 'staff']} />}>
+            <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager', 'ca']} />}>
+              <Route path="/sales" element={<SalesPage />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager']} />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/inventory" element={<InventoryPage />} />
               <Route path="/vehicles/:id" element={<VehicleDetailPage />} />
               <Route path="/loans" element={<LoansPage />} />
               <Route path="/expenses" element={<ExpensesPage />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager', 'staff']} />}>
               <Route path="/attendance" element={<AttendancePage />} />
             </Route>
 
-            {/* Admin-only routes */}
             <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin']} />}>
               <Route path="/settings" element={<SettingsPage />} />
             </Route>

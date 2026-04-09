@@ -90,7 +90,8 @@ async function myStatus(req, res) {
 const VISIBLE_ROLES = {
   super_admin: ['super_admin', 'company_admin', 'branch_manager', 'staff'],
   company_admin: ['company_admin', 'branch_manager', 'staff'],
-  branch_manager: ['staff'],
+  // Manager sees own row + branch staff (not other managers / admins)
+  branch_manager: ['staff', 'branch_manager'],
   staff: [],
 };
 

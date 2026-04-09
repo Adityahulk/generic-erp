@@ -29,6 +29,7 @@ async function seed() {
     );
     if (existingCompany.rows.length > 0) {
       const cid = existingCompany.rows[0].id;
+      await client.query(`DELETE FROM leave_requests WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM attendance WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM invoice_items WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM loans WHERE company_id = $1`, [cid]);

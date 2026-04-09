@@ -11,14 +11,15 @@ import { cn } from '@/lib/utils';
 import api from '@/lib/api';
 
 const navItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, hideFor: ['ca'] },
-  { to: '/inventory', label: 'Inventory', icon: Car, hideFor: ['ca'] },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, hideFor: ['ca', 'staff'] },
+  { to: '/inventory', label: 'Inventory', icon: Car, hideFor: ['ca', 'staff'] },
   { to: '/sales', label: 'Invoices', icon: FileText, onlyFor: ['ca'] },
-  { to: '/sales', label: 'Sales', icon: FileText, hideFor: ['ca'] },
-  { to: '/loans', label: 'Loans', icon: Landmark, hideFor: ['ca'] },
-  { to: '/expenses', label: 'Expenses', icon: Receipt, hideFor: ['ca'] },
-  { to: '/reports', label: 'Reports', icon: BarChart3 },
-  { to: '/attendance', label: 'Attendance', icon: Clock, hideFor: ['ca'] },
+  { to: '/sales', label: 'Sales', icon: FileText, hideFor: ['ca', 'staff'] },
+  { to: '/loans', label: 'Loans', icon: Landmark, hideFor: ['ca', 'staff'] },
+  { to: '/expenses', label: 'Expenses', icon: Receipt, hideFor: ['ca', 'staff'] },
+  { to: '/reports', label: 'Reports', icon: BarChart3, onlyFor: ['super_admin', 'company_admin', 'ca'] },
+  { to: '/attendance', label: 'Attendance & leave', icon: Clock, onlyFor: ['staff'] },
+  { to: '/attendance', label: 'Attendance', icon: Clock, hideFor: ['ca', 'staff'] },
   { to: '/settings', label: 'Settings', icon: Settings, adminOnly: true },
 ];
 
@@ -207,7 +208,7 @@ function MobileDrawer({ open, onClose, user, onLogout }) {
         <nav className="flex-1 overflow-y-auto py-2 px-3">
           {filteredItems.map(({ to, label, icon: Icon }) => (
             <NavLink
-              key={to}
+              key={`${to}-${label}`}
               to={to}
               onClick={onClose}
               className={({ isActive }) =>
@@ -240,6 +241,7 @@ export default function AppLayout({ children }) {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const showGlobalSearch = !['staff', 'ca'].includes(user?.role);
 
   const handleLogout = async () => {
     setMobileOpen(false);
@@ -266,7 +268,7 @@ export default function AppLayout({ children }) {
           <nav className="hidden md:flex items-center gap-1">
             {filterNav(user?.role).map(({ to, label, icon: Icon }) => (
                 <NavLink
-                  key={to}
+                  key={`${to}-${label}`}
                   to={to}
                   className={({ isActive }) =>
                     cn(
@@ -284,7 +286,7 @@ export default function AppLayout({ children }) {
           </nav>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
-          <GlobalSearch />
+          {showGlobalSearch ? <GlobalSearch /> : null}
           <span className="text-sm text-muted-foreground hidden lg:inline">
             {user?.name} <span className="text-xs">({user?.role})</span>
           </span>

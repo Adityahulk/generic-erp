@@ -13,11 +13,10 @@ const router = Router();
 router.use(verifyToken);
 
 const reportAccess = requireRole('super_admin', 'company_admin', 'ca');
-const reportAndManagerAccess = requireRole('super_admin', 'company_admin', 'branch_manager', 'ca');
 
 router.get('/gstr1', reportAccess, gstr1);
 router.get('/gstr1/export', reportAccess, gstr1Export);
-router.get('/sales-summary', reportAndManagerAccess, salesSummary);
-router.get('/stock-aging', reportAndManagerAccess, stockAging);
+router.get('/sales-summary', reportAccess, salesSummary);
+router.get('/stock-aging', reportAccess, stockAging);
 
 module.exports = router;

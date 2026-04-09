@@ -6,6 +6,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = rateLimit;
 const { pool } = require('./config/db');
 const { errorHandler } = require('./middleware/errorHandler');
 
@@ -31,7 +32,8 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, error: 'Too many login attempts. Try again in 15 minutes.' },
-  keyGenerator: (req) => req.ip,
+  // Required by express-rate-limit v7+ when keying by IP behind proxies (IPv6-safe).
+  keyGenerator: (req) => ipKeyGenerator(req.ip ?? ''),
 });
 
 const apiLimiter = rateLimit({
@@ -69,6 +71,7 @@ app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/companies', require('./routes/companies'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/attendance', require('./routes/attendance'));
+app.use('/api/leaves', require('./routes/leaves'));
 
 // --------------- 404 Handler ---------------
 app.use((_req, res) => {
