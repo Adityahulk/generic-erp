@@ -16,18 +16,36 @@ const {
 
 const router = Router();
 
-// Ensure upload directories exist
-const logosDir = path.join(__dirname, '..', '..', 'uploads', 'logos');
-const signaturesDir = path.join(__dirname, '..', '..', 'uploads', 'signatures');
-fs.mkdirSync(logosDir, { recursive: true });
-fs.mkdirSync(signaturesDir, { recursive: true });
+const uploadsRoot = path.join(__dirname, '..', '..', 'uploads');
+const logosRoot = path.join(uploadsRoot, 'logos');
+const signaturesRoot = path.join(uploadsRoot, 'signatures');
+fs.mkdirSync(logosRoot, { recursive: true });
+fs.mkdirSync(signaturesRoot, { recursive: true });
 
-function makeStorage(dest) {
+function companyLogoStorage() {
   return multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, dest),
+    destination: (req, _file, cb) => {
+      const dir = path.join(logosRoot, req.params.id);
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
     filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase();
-      cb(null, `${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
+      const ext = path.extname(file.originalname).toLowerCase() || '.png';
+      cb(null, `logo${ext}`);
+    },
+  });
+}
+
+function companySignatureStorage() {
+  return multer.diskStorage({
+    destination: (req, _file, cb) => {
+      const dir = path.join(signaturesRoot, req.params.id);
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase() || '.png';
+      cb(null, `signature${ext}`);
     },
   });
 }
@@ -42,13 +60,13 @@ const imageFilter = (_req, file, cb) => {
 };
 
 const logoUpload = multer({
-  storage: makeStorage(logosDir),
+  storage: companyLogoStorage(),
   fileFilter: imageFilter,
   limits: { fileSize: 2 * 1024 * 1024 },
 });
 
 const signatureUpload = multer({
-  storage: makeStorage(signaturesDir),
+  storage: companySignatureStorage(),
   fileFilter: imageFilter,
   limits: { fileSize: 1 * 1024 * 1024 },
 });

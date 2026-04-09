@@ -45,6 +45,7 @@ async function seed() {
       await client.query(`DELETE FROM customers WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM refresh_tokens WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM audit_logs WHERE company_id = $1`, [cid]);
+      await client.query(`DELETE FROM invoice_templates WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM einvoice_tokens WHERE company_id = $1`, [cid]);
       await client.query(`UPDATE branches SET manager_id = NULL WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM users WHERE company_id = $1`, [cid]);
@@ -64,6 +65,16 @@ async function seed() {
 
     // Self-reference for company_id
     await client.query(`UPDATE companies SET company_id = $1 WHERE id = $1`, [companyId]);
+
+    await client.query(
+      `INSERT INTO invoice_templates (company_id, name, is_default, template_key, layout_config)
+       VALUES
+         ($1, 'Standard GST Invoice', TRUE, 'standard',
+          '{"show_logo": true, "show_signature": true, "show_qr_code": false, "show_bank_details": false, "show_terms": true, "terms_text": "Goods once sold will not be taken back or exchanged. Subject to local jurisdiction.", "primary_color": "#1a56db", "font": "default", "header_style": "left-aligned", "show_vehicle_details_block": true, "show_loan_summary": false, "footer_text": "", "bank_details": ""}'::jsonb),
+         ($1, 'Simple Invoice', FALSE, 'simple',
+          '{"show_logo": false, "show_signature": true, "show_qr_code": false, "show_bank_details": false, "show_terms": false, "terms_text": "", "primary_color": "#374151", "font": "default", "header_style": "left-aligned", "show_vehicle_details_block": true, "show_loan_summary": false, "footer_text": "", "bank_details": ""}'::jsonb)`,
+      [companyId],
+    );
 
     // ── 2. Branches ───────────────────────────────────────
     const { rows: [mapusa] } = await client.query(

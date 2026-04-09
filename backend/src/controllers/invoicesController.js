@@ -368,12 +368,22 @@ async function fetchFullInvoice(invoiceId, companyId) {
             co.phone AS company_phone, co.email AS company_email,
             co.logo_url, co.signature_url,
             v.chassis_number, v.engine_number, v.make AS vehicle_make, v.model AS vehicle_model,
-            v.variant AS vehicle_variant, v.color AS vehicle_color, v.year AS vehicle_year
+            v.variant AS vehicle_variant, v.color AS vehicle_color, v.year AS vehicle_year,
+            lo.bank_name AS loan_bank_name, lo.loan_amount AS loan_amount,
+            lo.emi_amount AS loan_emi_amount, lo.tenure_months AS loan_tenure_months,
+            lo.disbursement_date AS loan_disbursement_date, lo.due_date AS loan_due_date
      FROM invoices i
      LEFT JOIN customers c ON c.id = i.customer_id
      LEFT JOIN branches b ON b.id = i.branch_id
      LEFT JOIN companies co ON co.id = i.company_id
      LEFT JOIN vehicles v ON v.id = i.vehicle_id
+     LEFT JOIN LATERAL (
+       SELECT l2.bank_name, l2.loan_amount, l2.emi_amount, l2.tenure_months, l2.disbursement_date, l2.due_date
+       FROM loans l2
+       WHERE l2.invoice_id = i.id AND l2.company_id = i.company_id AND l2.is_deleted = FALSE
+       ORDER BY l2.created_at DESC
+       LIMIT 1
+     ) lo ON TRUE
      WHERE i.id = $1 AND i.company_id = $2 AND i.is_deleted = FALSE`,
     [invoiceId, companyId],
   );

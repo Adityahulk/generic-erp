@@ -74,6 +74,7 @@ app.use('/api/leaves', require('./routes/leaves'));
 app.use('/api/suppliers', require('./routes/suppliers'));
 app.use('/api/purchases', require('./routes/purchases'));
 app.use('/api/import', require('./routes/import'));
+app.use('/api/invoice-templates', require('./routes/invoiceTemplates'));
 
 // --------------- 404 Handler ---------------
 app.use((_req, res) => {

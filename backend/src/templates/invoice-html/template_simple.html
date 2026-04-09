@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: __FONT_FAMILY__; color:#222; font-size:11px; padding:28px; }
+  .co { font-size:15px; font-weight:600; margin-bottom:4px; }
+  .sub { color:#555; font-size:10px; margin-bottom:16px; }
+  .row { display:flex; justify-content:space-between; margin-bottom:16px; }
+  table.items { width:100%; border-collapse:collapse; margin:12px 0; }
+  table.items th, table.items td { border:1px solid #ccc; padding:6px 8px; text-align:left; font-size:10px; }
+  table.items th { background:#f3f4f6; }
+  table.items .r { text-align:right; }
+  .totals { width:260px; margin-left:auto; margin-top:10px; border-collapse:collapse; }
+  .totals td { padding:3px 6px; }
+  .grand { font-weight:700; border-top:2px solid #333; }
+  .words { font-size:10px; margin:12px 0; color:#444; }
+  .sign { margin-top:28px; text-align:right; }
+  .sign img { max-height:44px; }
+  .footer { text-align:center; font-size:9px; color:#888; margin-top:24px; }
+</style>
+</head>
+<body>
+  <div class="co">__COMPANY_NAME__</div>
+  <div class="sub">__COMPANY_ADDRESS__ · GSTIN: __COMPANY_GSTIN__ · __COMPANY_PHONE__</div>
+
+  <div class="row">
+    <div>
+      <strong>Invoice</strong> __INVOICE_NUMBER__<br/>
+      <span style="font-size:10px">Date: __INVOICE_DATE__</span>
+    </div>
+    <div style="text-align:right;font-size:10px">
+      <strong>Bill To</strong><br/>
+      __CUSTOMER_NAME__<br/>
+      __CUSTOMER_PHONE__
+    </div>
+  </div>
+
+  __VEHICLE_SIMPLE__
+
+  <table class="items">
+    <thead>
+      __ITEMS_HEAD_SIMPLE__
+    </thead>
+    <tbody>
+      __ITEMS_BODY_SIMPLE__
+    </tbody>
+  </table>
+
+  <table class="totals">
+    __TOTALS_ROWS_SIMPLE__
+  </table>
+
+  <div class="words"><strong>In words:</strong> __AMOUNT_WORDS__</div>
+
+  <div class="sign">
+    __SIGNATURE_BLOCK_SIMPLE__
+  </div>
+
+  <div class="footer">__FOOTER_TEXT__ · Computer generated invoice.</div>
+</body>
+</html>

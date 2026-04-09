@@ -24,7 +24,8 @@ import {
 } from '@/components/ui/dialog';
 import api from '@/lib/api';
 import useAuthStore from '@/store/authStore';
-import { Building2, GitBranch, Users, Receipt, Loader2, Upload, Eye, EyeOff, RotateCcw, Plus, Pencil } from 'lucide-react';
+import { Building2, GitBranch, Users, Receipt, FileText, Loader2, Upload, Eye, EyeOff, RotateCcw, Plus, Pencil } from 'lucide-react';
+import InvoiceTemplates from '@/pages/InvoiceTemplates';
 
 const INDIAN_STATES = [
   { code: '01', name: 'Jammu & Kashmir' }, { code: '02', name: 'Himachal Pradesh' },
@@ -705,7 +706,7 @@ export default function SettingsPage() {
     <AppLayout>
       <div className="mb-6">
         <h2 className="text-2xl font-semibold">Settings</h2>
-        <p className="text-sm text-muted-foreground">Manage company, branches, users, and GST configuration</p>
+        <p className="text-sm text-muted-foreground">Manage company, branches, users, GST, and invoice templates</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -722,12 +723,16 @@ export default function SettingsPage() {
           <TabsTrigger value="gst" className="gap-1.5">
             <Receipt className="h-4 w-4" /> GST Settings
           </TabsTrigger>
+          <TabsTrigger value="invoice-templates" className="gap-1.5">
+            <FileText className="h-4 w-4" /> Invoice Templates
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="company"><CompanyTab /></TabsContent>
         <TabsContent value="branches"><BranchesTab /></TabsContent>
         <TabsContent value="users"><UsersTab /></TabsContent>
         <TabsContent value="gst"><GSTTab /></TabsContent>
+        <TabsContent value="invoice-templates"><InvoiceTemplates /></TabsContent>
       </Tabs>
     </AppLayout>
   );

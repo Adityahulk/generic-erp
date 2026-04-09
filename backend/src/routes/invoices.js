@@ -4,7 +4,15 @@ const { validateBody } = require('../middleware/validate');
 const { verifyToken } = require('../middleware/auth');
 const { requireMinRole } = require('../middleware/role');
 const ic = require('../controllers/invoicesController');
-const { generateInvoicePdf } = require('../services/pdfService');
+const {
+  generateInvoicePdf,
+  generateInvoiceHtmlForPreview,
+} = require('../services/pdfService');
+const {
+  fetchInvoiceTemplateRow,
+  buildDummyInvoiceData,
+  buildStandardInvoiceHtml,
+} = require('../services/invoiceTemplateRender');
 const eInvoice = require('../services/eInvoiceService');
 const { query } = require('../config/db');
 const { logAudit } = require('../middleware/auditLog');
@@ -42,6 +50,22 @@ const createInvoiceSchema = z.object({
   { message: 'Either customer_id or customer details required' },
 );
 
+// Static paths must be before /:id
+router.get('/preview-template', requireMinRole('company_admin'), async (req, res) => {
+  try {
+    const company_id = req.user.company_id;
+    const row = await fetchInvoiceTemplateRow(company_id, req.query.templateId || undefined);
+    const data = buildDummyInvoiceData();
+    data.invoice.company_id = company_id;
+    const html = buildStandardInvoiceHtml(data, row);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (err) {
+    console.error('preview-template failed:', err);
+    res.status(500).send('Template preview failed');
+  }
+});
+
 // E-Invoice status check must be before /:id routes to avoid param collision
 router.get('/einvoice/status', (_req, res) => {
   res.json({
@@ -52,9 +76,24 @@ router.get('/einvoice/status', (_req, res) => {
 
 router.post('/', validateBody(createInvoiceSchema), ic.createInvoice);
 router.get('/', ic.listInvoices);
-router.get('/:id', ic.getInvoice);
-router.patch('/:id/cancel', requireMinRole('branch_manager'), ic.cancelInvoice);
-router.patch('/:id/confirm', ic.confirmInvoice);
+
+router.get('/:id/preview', async (req, res) => {
+  try {
+    const company_id = req.user.company_id;
+    const data = await ic.fetchFullInvoice(req.params.id, company_id);
+    if (!data) return res.status(404).json({ error: 'Invoice not found' });
+    const html = await generateInvoiceHtmlForPreview(
+      data,
+      company_id,
+      req.query.templateId || undefined,
+    );
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (err) {
+    console.error('Invoice HTML preview failed:', err);
+    res.status(500).json({ error: 'Preview generation failed' });
+  }
+});
 
 router.get('/:id/pdf', async (req, res) => {
   try {
@@ -62,7 +101,11 @@ router.get('/:id/pdf', async (req, res) => {
     const data = await ic.fetchFullInvoice(req.params.id, company_id);
     if (!data) return res.status(404).json({ error: 'Invoice not found' });
 
-    const pdfBuffer = await generateInvoicePdf(data);
+    const pdfBuffer = await generateInvoicePdf(
+      data,
+      company_id,
+      req.query.templateId || null,
+    );
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `inline; filename="${data.invoice.invoice_number}.pdf"`,
@@ -74,6 +117,10 @@ router.get('/:id/pdf', async (req, res) => {
     res.status(500).json({ error: 'PDF generation failed' });
   }
 });
+
+router.get('/:id', ic.getInvoice);
+router.patch('/:id/cancel', requireMinRole('branch_manager'), ic.cancelInvoice);
+router.patch('/:id/confirm', ic.confirmInvoice);
 
 // ─── E-Invoice (NIC IRP) Routes ──────────────────────────────
 

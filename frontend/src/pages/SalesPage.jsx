@@ -14,9 +14,10 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Plus, Loader2, Search, FileText, Download, X, ChevronLeft, ChevronRight,
-  Check, ArrowRight, ArrowLeft, Trash2, Ban, ShieldCheck, ShieldX, Upload,
+  Check, ArrowRight, ArrowLeft, Trash2, Ban, ShieldCheck, ShieldX, Upload, Eye,
 } from 'lucide-react';
 import BulkImport from '@/components/BulkImport';
+import InvoicePreviewModal from '@/components/InvoicePreviewModal';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import api from '@/lib/api';
@@ -422,7 +423,14 @@ export default function SalesPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [filters, setFilters] = useState({ page: 1, limit: 25, status: '', customer_search: '' });
   const [searchInput, setSearchInput] = useState('');
+  const [previewInvoice, setPreviewInvoice] = useState(null);
+  const [pdfTemplateChoice, setPdfTemplateChoice] = useState({});
   const { data: branches } = useBranches();
+
+  const { data: invoiceTemplates = [] } = useQuery({
+    queryKey: ['invoice-templates'],
+    queryFn: () => api.get('/invoice-templates').then((r) => r.data.templates),
+  });
 
   const { data, isLoading } = useInvoices(
     Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== '')),
@@ -481,9 +489,10 @@ export default function SalesPage() {
     onError: (err) => toast.error(err.response?.data?.error || 'E-Invoice cancellation failed'),
   });
 
-  const downloadPdf = async (invoiceId, invoiceNumber) => {
+  const downloadPdf = async (invoiceId, invoiceNumber, templateId) => {
     try {
-      const response = await api.get(`/invoices/${invoiceId}/pdf`, { responseType: 'blob' });
+      const params = templateId ? { templateId } : {};
+      const response = await api.get(`/invoices/${invoiceId}/pdf`, { params, responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
       const link = document.createElement('a');
       link.href = url;
@@ -493,7 +502,7 @@ export default function SalesPage() {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch {
-      alert('PDF download failed. Ensure Chrome/Chromium is installed on the server.');
+      toast.error('PDF download failed. Ensure Chrome/Chromium is installed on the server.');
     }
   };
 
@@ -608,11 +617,39 @@ export default function SalesPage() {
                   )}
                   <TableCell className="text-right font-mono">{formatCurrency(inv.total)}</TableCell>
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      {inv.status === 'confirmed' && (
-                        <Button variant="ghost" size="sm" onClick={() => downloadPdf(inv.id, inv.invoice_number)} title="Download PDF">
-                          <Download className="h-3.5 w-3.5" />
+                    <div className="flex flex-wrap items-center justify-end gap-1 max-w-[220px] ml-auto">
+                      {inv.status !== 'cancelled' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Preview HTML"
+                          onClick={() => setPreviewInvoice({ id: inv.id, invoice_number: inv.invoice_number })}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
                         </Button>
+                      )}
+                      {inv.status === 'confirmed' && (
+                        <>
+                          <Select
+                            className="h-8 w-[9.5rem] text-xs shrink-0"
+                            value={pdfTemplateChoice[inv.id] || ''}
+                            onChange={(e) => setPdfTemplateChoice((p) => ({ ...p, [inv.id]: e.target.value }))}
+                            title="Template for PDF download"
+                          >
+                            <option value="">Default template</option>
+                            {invoiceTemplates.map((t) => (
+                              <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                          </Select>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => downloadPdf(inv.id, inv.invoice_number, pdfTemplateChoice[inv.id] || undefined)}
+                            title="Download PDF"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </Button>
+                        </>
                       )}
                       {eInvoiceStatus?.enabled && inv.status === 'confirmed' && (!inv.irn_status || inv.irn_status === 'pending' || inv.irn_status === 'failed') && canManage && (
                         <Button variant="ghost" size="sm" title="Generate e-Invoice (IRN)"
@@ -669,6 +706,15 @@ export default function SalesPage() {
       </div>
 
       <NewSaleDialog open={saleOpen} onOpenChange={setSaleOpen} />
+
+      <InvoicePreviewModal
+        open={!!previewInvoice}
+        onOpenChange={(o) => { if (!o) setPreviewInvoice(null); }}
+        invoiceId={previewInvoice?.id}
+        invoiceNumber={previewInvoice?.invoice_number}
+        templates={invoiceTemplates}
+        defaultTemplateId={previewInvoice?.id ? pdfTemplateChoice[previewInvoice.id] : undefined}
+      />
     </AppLayout>
   );
 }

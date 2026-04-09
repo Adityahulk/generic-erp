@@ -171,23 +171,24 @@ function findChromePath() {
   return undefined;
 }
 
-async function generateInvoicePdf(invoiceData) {
+const {
+  fetchInvoiceTemplateRow,
+  buildStandardInvoiceHtml,
+} = require('./invoiceTemplateRender');
+
+async function htmlToPdfBuffer(html) {
   let puppeteer;
   try {
     puppeteer = require('puppeteer');
   } catch {
     puppeteer = require('puppeteer-core');
   }
-
-  const html = buildInvoiceHtml(invoiceData);
-
   const executablePath = findChromePath();
   const launchOptions = {
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
     ...(executablePath && { executablePath }),
   };
-
   const browser = await puppeteer.launch(launchOptions);
   try {
     const page = await browser.newPage();
@@ -195,12 +196,28 @@ async function generateInvoicePdf(invoiceData) {
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
-      margin: { top: '15mm', right: '10mm', bottom: '15mm', left: '10mm' },
+      margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
     });
     return Buffer.from(pdfBuffer);
   } finally {
     await browser.close();
   }
+}
+
+/**
+ * @param {{ invoice: object, items: object[] }} invoiceData
+ * @param {string} companyId
+ * @param {string|null|undefined} templateId
+ */
+async function generateInvoicePdf(invoiceData, companyId, templateId) {
+  const row = await fetchInvoiceTemplateRow(companyId, templateId || undefined);
+  const html = buildStandardInvoiceHtml(invoiceData, row);
+  return htmlToPdfBuffer(html);
+}
+
+async function generateInvoiceHtmlForPreview(invoiceData, companyId, templateId) {
+  const row = await fetchInvoiceTemplateRow(companyId, templateId || undefined);
+  return buildStandardInvoiceHtml(invoiceData, row);
 }
 
 function buildPurchaseOrderHtml({ purchase_order: po, items }) {
@@ -336,5 +353,10 @@ async function generatePurchaseOrderPdf(poData) {
 }
 
 module.exports = {
-  generateInvoicePdf, buildInvoiceHtml, generatePurchaseOrderPdf, buildPurchaseOrderHtml,
+  generateInvoicePdf,
+  generateInvoiceHtmlForPreview,
+  htmlToPdfBuffer,
+  buildInvoiceHtml,
+  generatePurchaseOrderPdf,
+  buildPurchaseOrderHtml,
 };

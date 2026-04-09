@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: __FONT_FAMILY__; color:#111; font-size:11px; padding:24px; }
+  .divider { height:3px; background:__PRIMARY_COLOR__; margin:12px 0 16px; }
+  .header-centered { text-align:center; }
+  .header-two-col { display:flex; justify-content:space-between; align-items:flex-start; }
+  .header-left { text-align:left; }
+  .title-tax { font-size:20px; font-weight:700; color:__PRIMARY_COLOR__; }
+  .company-name { font-size:18px; font-weight:700; color:#111; }
+  .meta-table td { padding:2px 0; }
+  .party-grid { display:flex; justify-content:space-between; gap:16px; margin-bottom:16px; }
+  .party { flex:1; padding:10px; background:#f8fafc; border-radius:6px; }
+  .party h4 { font-size:9px; text-transform:uppercase; color:#64748b; margin-bottom:6px; letter-spacing:0.04em; }
+  table.items { width:100%; border-collapse:collapse; margin-bottom:12px; font-size:10px; }
+  table.items th { background:__PRIMARY_COLOR__; color:#fff; padding:6px 4px; text-align:left; font-weight:600; }
+  table.items td { padding:5px 4px; border-bottom:1px solid #e5e7eb; vertical-align:top; }
+  table.items .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .totals-wrap { display:flex; justify-content:flex-end; margin:12px 0; }
+  .totals { width:300px; border-collapse:collapse; }
+  .totals td { padding:4px 8px; }
+  .totals .grand { font-weight:700; font-size:13px; background:__PRIMARY_COLOR__; color:#fff; }
+  .words { margin:12px 0; padding:8px; background:#f1f5f9; border-radius:4px; font-size:11px; }
+  .bottom-grid { display:flex; justify-content:space-between; gap:20px; margin-top:20px; border-top:1px solid #e5e7eb; padding-top:14px; }
+  .terms { flex:1; font-size:10px; color:#444; white-space:pre-wrap; }
+  .sign { flex:0 0 200px; text-align:right; }
+  .sign img { max-height:48px; margin:6px 0; }
+  .footer { text-align:center; font-size:9px; color:#94a3b8; margin-top:20px; }
+  .loan-box { margin-top:8px; padding:8px; background:#fffbeb; border:1px solid #fcd34d; border-radius:4px; font-size:10px; }
+</style>
+</head>
+<body>
+__HEADER_HTML__
+
+<div class="divider"></div>
+
+<div class="party-grid">
+  <div class="party">
+    <h4>Bill To</h4>
+    <p><strong>__CUSTOMER_NAME__</strong></p>
+    <p>__CUSTOMER_ADDRESS__</p>
+    <p>__CUSTOMER_PHONE__</p>
+    <p>__CUSTOMER_GSTIN_LINE__</p>
+  </div>
+  __VEHICLE_BLOCK__
+</div>
+
+__LOAN_BLOCK__
+
+<table class="items">
+  <thead>
+    __ITEMS_HEAD__
+  </thead>
+  <tbody>
+    __ITEMS_BODY__
+  </tbody>
+</table>
+
+<div class="totals-wrap">
+  <table class="totals">
+    __TOTALS_ROWS__
+  </table>
+</div>
+
+<div class="words"><strong>Total Amount (in words):</strong> __AMOUNT_WORDS__</div>
+
+__EINVOICE_BLOCK__
+
+<div class="bottom-grid">
+  <div>
+    __TERMS_BLOCK__
+    __BANK_BLOCK__
+  </div>
+  <div class="sign">
+    __SIGNATURE_BLOCK__
+  </div>
+</div>
+
+__QR_BLOCK__
+
+<div class="footer">
+  <p>__FOOTER_TEXT__</p>
+  <p>This is a computer generated invoice.</p>
+</div>
+</body>
+</html>

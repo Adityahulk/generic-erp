@@ -1,4 +1,5 @@
 const { query } = require('../config/db');
+const { seedDefaultInvoiceTemplates } = require('./invoiceTemplateController');
 
 async function getCompany(req, res) {
   try {
@@ -90,7 +91,7 @@ async function uploadLogo(req, res) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const logo_url = `/uploads/logos/${req.file.filename}`;
+    const logo_url = `/uploads/logos/${id}/${req.file.filename}`;
     const { rows } = await query(
       `UPDATE companies SET logo_url = $1 WHERE id = $2 AND is_deleted = FALSE
        RETURNING id, logo_url`,
@@ -121,7 +122,7 @@ async function uploadSignature(req, res) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const signature_url = `/uploads/signatures/${req.file.filename}`;
+    const signature_url = `/uploads/signatures/${id}/${req.file.filename}`;
     const { rows } = await query(
       `UPDATE companies SET signature_url = $1 WHERE id = $2 AND is_deleted = FALSE
        RETURNING id, signature_url`,
@@ -149,6 +150,8 @@ async function createCompany(req, res) {
        RETURNING id, name, gstin, address, phone, email, created_at`,
       [name, gstin || null, address || null, phone || null, email || null],
     );
+
+    await seedDefaultInvoiceTemplates(rows[0].id);
 
     res.status(201).json({ company: rows[0] });
   } catch (err) {
