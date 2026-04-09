@@ -41,8 +41,12 @@ async function preview(req, res) {
   const company_id = req.user.company_id;
   const user_id = req.user.id;
   const importType = req.body?.type;
-  if (!['vehicles', 'sales', 'purchases'].includes(importType)) {
-    return res.status(400).json({ error: 'type must be vehicles, sales, or purchases' });
+  if (!['vehicles', 'sales', 'purchases', 'quotations'].includes(importType)) {
+    return res.status(400).json({ error: 'type must be vehicles, sales, purchases, or quotations' });
+  }
+  if (importType === 'quotations') {
+    if (req.file?.path) fs.unlink(req.file.path, () => {});
+    return res.status(400).json({ error: 'Quotation bulk import is not available yet.' });
   }
   if (!req.file?.path) return res.status(400).json({ error: 'file is required' });
 
@@ -419,6 +423,9 @@ async function confirmImport(req, res) {
 
 function downloadTemplate(req, res) {
   const { type } = req.params;
+  if (type === 'quotations') {
+    return res.status(400).json({ error: 'Quotation import template is not available yet.' });
+  }
   if (!['vehicles', 'sales', 'purchases'].includes(type)) {
     return res.status(400).json({ error: 'Invalid template type' });
   }

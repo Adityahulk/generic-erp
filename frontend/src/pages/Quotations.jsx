@@ -1,0 +1,227 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import AppLayout from '@/components/AppLayout';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import BulkImport from '@/components/BulkImport';
+import api from '@/lib/api';
+import useAuthStore from '@/store/authStore';
+import { formatCurrency, formatDate } from '@/lib/utils';
+import {
+  Plus, Search, Loader2, Eye, Pencil, Send, FileDown, Link2, FileText,
+} from 'lucide-react';
+import { toast } from 'sonner';
+
+const STATUS_TABS = [
+  { value: '', label: 'All' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'sent', label: 'Sent' },
+  { value: 'accepted', label: 'Accepted' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'expired', label: 'Expired' },
+  { value: 'converted', label: 'Converted' },
+];
+
+const STATUS_BADGE = {
+  draft: 'secondary',
+  sent: 'default',
+  accepted: 'success',
+  rejected: 'destructive',
+  expired: 'warning',
+  converted: 'outline',
+};
+
+export default function QuotationsPage() {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const [status, setStatus] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput), 400);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  const params = Object.fromEntries(
+    Object.entries({ status, customer_search: search, limit: 50 }).filter(([, v]) => v !== ''),
+  );
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['quotations', params],
+    queryFn: () => api.get('/quotations', { params }).then((r) => r.data),
+  });
+
+  const rows = data?.quotations || [];
+
+  const copyShare = useCallback(async (id) => {
+    try {
+      const { data: d } = await api.get(`/quotations/${id}/share-link`);
+      const url = d.url?.startsWith('http') ? d.url : `${window.location.origin}${d.url}`;
+      await navigator.clipboard.writeText(url);
+      toast.success('Share link copied (valid 7 days)');
+    } catch {
+      toast.error('Could not create share link');
+    }
+  }, []);
+
+  const downloadPdf = async (id, num) => {
+    try {
+      const res = await api.get(`/quotations/${id}/pdf`, { responseType: 'blob' });
+      const u = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = u;
+      a.download = `${num || 'quotation'}.pdf`;
+      a.click();
+      window.URL.revokeObjectURL(u);
+    } catch {
+      toast.error('PDF download failed');
+    }
+  };
+
+  const canEdit = ['super_admin', 'company_admin', 'branch_manager'].includes(user?.role);
+
+  return (
+    <AppLayout>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <h2 className="text-2xl font-semibold">Quotations</h2>
+        {canEdit && (
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              Import
+            </Button>
+            <Button onClick={() => navigate('/quotations/new')}>
+              <Plus className="h-4 w-4 mr-2" /> New Quotation
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <BulkImport
+        type="quotations"
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onSuccess={() => qc.invalidateQueries({ queryKey: ['quotations'] })}
+      />
+
+      <div className="flex flex-col gap-4 mb-4">
+        <div className="relative max-w-md">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="pl-8"
+            placeholder="Search customer name or phone..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+          />
+        </div>
+        <Tabs value={status || 'all'} onValueChange={(v) => setStatus(v === 'all' ? '' : v)}>
+          <TabsList className="flex-wrap h-auto gap-1">
+            {STATUS_TABS.map((t) => (
+              <TabsTrigger key={t.value || 'all'} value={t.value || 'all'} className="text-xs sm:text-sm">
+                {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </div>
+
+      <div className="rounded-lg border border-border bg-card overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Quotation No</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Valid Until</TableHead>
+              <TableHead>Customer</TableHead>
+              <TableHead>Vehicle</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                </TableCell>
+              </TableRow>
+            ) : rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                  No quotations found
+                </TableCell>
+              </TableRow>
+            ) : (
+              rows.map((q) => (
+                <TableRow key={q.id}>
+                  <TableCell className="font-mono text-xs whitespace-nowrap">{q.quotation_number}</TableCell>
+                  <TableCell>{formatDate(q.quotation_date)}</TableCell>
+                  <TableCell>{formatDate(q.valid_until_date)}</TableCell>
+                  <TableCell>
+                    <div>{q.customer_display_name || '—'}</div>
+                    <div className="text-xs text-muted-foreground">{q.customer_display_phone}</div>
+                  </TableCell>
+                  <TableCell className="max-w-[160px] truncate">
+                    {q.vehicle_make ? `${q.vehicle_make} ${q.vehicle_model}` : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right font-mono">{formatCurrency(q.total)}</TableCell>
+                  <TableCell>
+                    <Badge variant={STATUS_BADGE[q.status] || 'secondary'}>{q.status}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex flex-wrap justify-end gap-1">
+                      <Button variant="ghost" size="sm" title="View" onClick={() => navigate(`/quotations/${q.id}`)}>
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                      {canEdit && ['draft', 'sent'].includes(q.status) && (
+                        <Button variant="ghost" size="sm" title="Edit" onClick={() => navigate(`/quotations/${q.id}/edit`)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      {canEdit && q.status === 'draft' && (
+                        <Button variant="ghost" size="sm" title="Send" onClick={async () => {
+                          try {
+                            await api.post(`/quotations/${q.id}/send`);
+                            qc.invalidateQueries({ queryKey: ['quotations'] });
+                            toast.success('Marked as sent');
+                          } catch (e) {
+                            toast.error(e.response?.data?.error || 'Failed');
+                          }
+                        }}
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      {canEdit && ['sent', 'accepted'].includes(q.status) && (
+                        <Button variant="ghost" size="sm" title="View / convert" onClick={() => navigate(`/quotations/${q.id}`)}>
+                          <FileText className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="sm" title="PDF" onClick={() => downloadPdf(q.id, q.quotation_number)}>
+                        <FileDown className="h-3.5 w-3.5" />
+                      </Button>
+                      {canEdit && (
+                        <Button variant="ghost" size="sm" title="Share link" onClick={() => copyShare(q.id)}>
+                          <Link2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </AppLayout>
+  );
+}

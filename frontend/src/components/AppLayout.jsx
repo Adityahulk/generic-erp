@@ -16,6 +16,7 @@ const navItems = [
   { to: '/purchases', label: 'Purchases', icon: ShoppingBag, hideFor: ['ca', 'staff'] },
   { to: '/sales', label: 'Invoices', icon: FileText, onlyFor: ['ca'] },
   { to: '/sales', label: 'Sales', icon: FileText, hideFor: ['ca', 'staff'] },
+  { to: '/quotations', label: 'Quotations', icon: FileText, hideFor: ['ca', 'staff'] },
   { to: '/loans', label: 'Loans', icon: Landmark, hideFor: ['ca', 'staff'] },
   { to: '/expenses', label: 'Expenses', icon: Receipt, hideFor: ['ca', 'staff'] },
   { to: '/reports', label: 'Reports', icon: BarChart3, onlyFor: ['super_admin', 'company_admin', 'ca'] },

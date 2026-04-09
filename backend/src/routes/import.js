@@ -31,7 +31,7 @@ router.use(requireMinRole('branch_manager'));
 
 const confirmSchema = z.object({
   importSessionId: z.string().uuid(),
-  type: z.enum(['vehicles', 'sales', 'purchases']),
+  type: z.enum(['vehicles', 'sales', 'purchases', 'quotations']),
   branchId: z.string().uuid(),
 });
 

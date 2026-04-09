@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Quotation {{QUOTATION_NUMBER}}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; color: #111; font-size: 11px; line-height: 1.45; }
+    .wrap { padding: 8mm 10mm; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 12px; }
+    .header-left { flex: 1; min-width: 0; }
+    .header-right { flex: 0 0 240px; text-align: right; }
+    .logo { max-height: 48px; margin-bottom: 6px; }
+    .co-name { font-size: 18px; font-weight: 700; color: {{PRIMARY_COLOR}}; margin-bottom: 4px; }
+    .branch-line { color: #444; }
+    .gstin { margin-top: 4px; font-weight: 600; }
+    .title-q { font-size: 28px; font-weight: 800; color: {{PRIMARY_COLOR}}; letter-spacing: 0.12em; margin-bottom: 8px; }
+    .meta td { padding: 2px 0; text-align: right; }
+    .meta td:first-child { color: #666; padding-right: 10px; }
+    .valid-warn { color: #b45309 !important; font-weight: 600; }
+    .divider { height: 3px; background: {{PRIMARY_COLOR}}; margin: 10px 0 14px; border-radius: 2px; }
+    .two-col { display: flex; gap: 16px; margin-bottom: 14px; }
+    .box { flex: 1; padding: 10px 12px; background: #f8fafc; border-radius: 6px; border: 1px solid #e5e7eb; }
+    .box h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; margin-bottom: 6px; }
+    table.items { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 10px; }
+    table.items th { background: {{PRIMARY_COLOR}}; color: #fff; padding: 7px 5px; text-align: left; font-weight: 600; }
+    table.items th.num, table.items td.num { text-align: right; }
+    table.items th.center, table.items td.center { text-align: center; }
+    table.items td { padding: 6px 5px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+    tr.row-vehicle td { background: {{PRIMARY_COLOR}}14; }
+    .totals { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+    .totals table { width: 280px; border-collapse: collapse; }
+    .totals td { padding: 4px 8px; }
+    .totals td:first-child { color: #555; }
+    .totals td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+    .grand { font-weight: 800; font-size: 13px; color: #fff; background: {{PRIMARY_COLOR}}; }
+    .grand td { padding: 10px 8px !important; }
+    .words { margin: 12px 0; padding: 10px; background: #f1f5f9; border-radius: 6px; font-size: 11px; font-weight: 600; }
+    .notes-section { margin: 14px 0; padding: 12px; background: #f8fafc; border-left: 4px solid {{PRIMARY_COLOR}}; border-radius: 0 6px 6px 0; }
+    .notes-section h4 { font-size: 11px; margin-bottom: 8px; }
+    .notes-body { white-space: pre-wrap; color: #334155; }
+    .terms { margin-top: 14px; font-size: 9px; color: #475569; }
+    .terms h4 { font-size: 10px; color: #111; margin-bottom: 6px; }
+    .terms ol { padding-left: 16px; }
+    .terms li { margin-bottom: 4px; }
+    .footer-sign { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 20px; padding-top: 12px; border-top: 1px solid #e5e7eb; }
+    .sign-block { text-align: right; }
+    .sign-block img { max-height: 44px; display: block; margin: 8px 0 4px auto; }
+    .foot-note { text-align: center; margin-top: 14px; font-size: 9px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div class="header-left">
+        {{LOGO_BLOCK}}
+        <div class="co-name">{{COMPANY_NAME}}</div>
+        <div class="branch-line"><strong>{{BRANCH_NAME}}</strong></div>
+        <div class="branch-line">{{BRANCH_ADDRESS}}</div>
+        <div class="branch-line">Phone: {{BRANCH_PHONE}} | Email: {{BRANCH_EMAIL}}</div>
+        <div class="gstin">GSTIN: {{COMPANY_GSTIN}}</div>
+      </div>
+      <div class="header-right">
+        <div class="title-q">QUOTATION</div>
+        <table class="meta">
+          <tr><td>Quotation No.</td><td><strong>{{QUOTATION_NUMBER}}</strong></td></tr>
+          <tr><td>Date</td><td>{{QUOTATION_DATE}}</td></tr>
+          <tr><td>Valid Until</td><td class="{{VALID_CLASS}}">{{VALID_UNTIL}}</td></tr>
+          <tr><td>Prepared by</td><td>{{PREPARED_BY}}</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="divider"></div>
+
+    <div class="two-col">
+      <div class="box">
+        <h3>Prepared For</h3>
+        <p><strong>{{CUSTOMER_NAME}}</strong></p>
+        <p>{{CUSTOMER_CONTACT}}</p>
+        <p style="margin-top:6px;white-space:pre-wrap">{{CUSTOMER_ADDRESS}}</p>
+      </div>
+      <div class="box">
+        <h3>Vehicle Details</h3>
+        <p><strong>Make &amp; Model:</strong> {{VEH_MAKE_MODEL}}</p>
+        <p><strong>Color:</strong> {{VEH_COLOR}}</p>
+        <p><strong>Year:</strong> {{VEH_YEAR}}</p>
+        <p><strong>Chassis No:</strong> {{CHASSIS}}</p>
+        <p><strong>Ex-showroom Price:</strong> {{EX_SHOWROOM}}</p>
+      </div>
+    </div>
+
+    <table class="items">
+      <thead>
+        <tr>
+          <th class="center" style="width:4%">#</th>
+          <th style="width:26%">Description</th>
+          <th class="center" style="width:8%">HSN</th>
+          <th class="center" style="width:6%">Qty</th>
+          <th class="num" style="width:10%">Unit Price</th>
+          <th class="num" style="width:10%">Discount</th>
+          <th class="num" style="width:10%">Taxable</th>
+          <th class="center" style="width:8%">GST %</th>
+          <th class="num" style="width:10%">GST Amt</th>
+          <th class="num" style="width:10%">Total</th>
+        </tr>
+      </thead>
+      <tbody>{{ITEM_ROWS}}</tbody>
+    </table>
+
+    <div class="totals">
+      <table>
+        <tr><td>Subtotal (taxable)</td><td>{{SUBTOTAL}}</td></tr>
+        {{DISCOUNT_ROW}}
+        <tr><td>CGST</td><td>{{CGST}}</td></tr>
+        <tr><td>SGST</td><td>{{SGST}}</td></tr>
+        <tr><td>IGST</td><td>{{IGST}}</td></tr>
+        <tr class="grand"><td>Grand Total</td><td>{{GRAND_TOTAL}}</td></tr>
+      </table>
+    </div>
+
+    <div class="words">Amount Payable: {{AMOUNT_WORDS}}</div>
+
+    {{NOTES_BLOCK}}
+
+    <div class="terms">
+      <h4>Terms &amp; Conditions</h4>
+      <ol>{{TERMS_LIST}}</ol>
+    </div>
+
+    <div class="footer-sign">
+      <div>{{COMPANY_FOOTER}}</div>
+      <div class="sign-block">
+        <div>For <strong>{{COMPANY_NAME}}</strong></div>
+        {{SIGNATURE_IMG}}
+        <div>Authorised Signatory</div>
+      </div>
+    </div>
+    <p class="foot-note">This is a computer-generated quotation. Not an invoice.</p>
+  </div>
+</body>
+</html>

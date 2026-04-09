@@ -75,6 +75,7 @@ app.use('/api/suppliers', require('./routes/suppliers'));
 app.use('/api/purchases', require('./routes/purchases'));
 app.use('/api/import', require('./routes/import'));
 app.use('/api/invoice-templates', require('./routes/invoiceTemplates'));
+app.use('/api/public', require('./routes/publicQuotations'));
 
 // --------------- 404 Handler ---------------
 app.use((_req, res) => {
@@ -90,6 +91,9 @@ schedulePenaltyJob().catch((err) => console.error('Failed to schedule penalty jo
 
 const { scheduleReminderJobs } = require('./jobs/reminderJob');
 scheduleReminderJobs().catch((err) => console.error('Failed to schedule reminder jobs:', err.message));
+
+const { scheduleQuotationExpiryJob } = require('./jobs/quotationExpiryJob');
+scheduleQuotationExpiryJob().catch((err) => console.error('Failed to schedule quotation expiry job:', err.message));
 
 // --------------- Start Server ---------------
 const PORT = Number(process.env.PORT) || 4000;

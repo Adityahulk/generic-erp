@@ -18,6 +18,9 @@ import PurchaseList from './pages/purchases/PurchaseList';
 import PurchaseForm from './pages/purchases/PurchaseForm';
 import PurchaseDetail from './pages/purchases/PurchaseDetail';
 import PurchaseReceive from './pages/purchases/PurchaseReceive';
+import QuotationsPage from './pages/Quotations';
+import QuotationFormPage from './pages/QuotationForm';
+import QuotationDetailPage from './pages/QuotationDetail';
 import useAuthStore from './store/authStore';
 
 function DefaultRedirect() {
@@ -53,6 +56,13 @@ export default function App() {
 
             <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager', 'ca']} />}>
               <Route path="/sales" element={<SalesPage />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager']} />}>
+              <Route path="/quotations" element={<QuotationsPage />} />
+              <Route path="/quotations/new" element={<QuotationFormPage />} />
+              <Route path="/quotations/:id/edit" element={<QuotationFormPage />} />
+              <Route path="/quotations/:id" element={<QuotationDetailPage />} />
             </Route>
 
             <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager']} />}>

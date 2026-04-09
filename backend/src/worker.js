@@ -8,6 +8,7 @@ require('dotenv').config();
 const redis = require('./config/redis');
 const { schedulePenaltyJob, createPenaltyWorker } = require('./jobs/penaltyJob');
 const { scheduleReminderJobs, createReminderWorker } = require('./jobs/reminderJob');
+const { scheduleQuotationExpiryJob, createQuotationExpiryWorker } = require('./jobs/quotationExpiryJob');
 
 const workers = [];
 
@@ -19,10 +20,12 @@ async function start() {
   // Create worker instances
   workers.push(createPenaltyWorker());
   workers.push(createReminderWorker());
+  workers.push(createQuotationExpiryWorker());
 
   // Schedule repeatable jobs (idempotent — removes old schedules first)
   await schedulePenaltyJob();
   await scheduleReminderJobs();
+  await scheduleQuotationExpiryJob();
 
   console.log(`[Worker] ${workers.length} workers active, waiting for jobs...`);
 }

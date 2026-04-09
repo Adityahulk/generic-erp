@@ -143,6 +143,7 @@ export default function BulkImport({
     handleClose(false);
     if (type === 'vehicles') navigate('/inventory');
     else if (type === 'sales') navigate('/sales');
+    else if (type === 'quotations') navigate('/quotations');
     else navigate('/purchases');
   };
 

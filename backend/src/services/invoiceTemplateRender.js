@@ -390,4 +390,9 @@ module.exports = {
   buildDummyInvoiceData,
   formatPaise,
   formatDate,
+  amountInWordsFromPaise,
+  findCompanyAsset,
+  fileToDataUri,
+  tryLegacyUploadUrl,
+  esc,
 };
