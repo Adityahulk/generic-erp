@@ -131,8 +131,8 @@ async function seed() {
 
     await client.query(
       `INSERT INTO users (company_id, branch_id, name, email, password_hash, phone, role)
-       VALUES ($1, $2, 'CA Ramesh Pai', 'ca@demo.com', $3, '9876543216', 'ca')`,
-      [companyId, mapusa.id, hash],
+       VALUES ($1, NULL, 'CA Ramesh Pai', 'ca@demo.com', $2, '9876543216', 'ca')`,
+      [companyId, hash],
     );
 
     // Assign managers to branches

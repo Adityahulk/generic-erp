@@ -10,7 +10,90 @@ import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import api from '@/lib/api';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
-import { FileSpreadsheet, TrendingUp, Package, Download, Loader2 } from 'lucide-react';
+import { FileSpreadsheet, TrendingUp, Package, Download, Loader2, Zap } from 'lucide-react';
+import { usePermissions } from '@/hooks/usePermissions';
+import ReadOnlyBadge from '@/components/ReadOnlyBadge';
+
+function currentMonthRange() {
+  const d = new Date();
+  const from = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  const to = last.toISOString().slice(0, 10);
+  return { from, to };
+}
+
+function currentFYRange() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1;
+  const fyStartYear = month >= 4 ? year : year - 1;
+  const fyEndYear = fyStartYear + 1;
+  return { from: `${fyStartYear}-04-01`, to: `${fyEndYear}-03-31` };
+}
+
+function authDownload(path, filename) {
+  const token = localStorage.getItem('access_token');
+  const base = import.meta.env.VITE_API_URL || '/api';
+  fetch(`${base}${path}`, { headers: { Authorization: `Bearer ${token}` } })
+    .then((r) => {
+      if (!r.ok) throw new Error('Download failed');
+      return r.blob();
+    })
+    .then((blob) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    })
+    .catch(() => {});
+}
+
+function CAQuickExports() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1);
+  const year = String(now.getFullYear());
+  const { from: mFrom, to: mTo } = currentMonthRange();
+  const { from: fyFrom, to: fyTo } = currentFYRange();
+
+  return (
+    <Card className="mb-6 border-amber-200/80 bg-amber-50/40">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Zap className="h-4 w-4 text-amber-700" />
+          Quick Export
+        </CardTitle>
+        <p className="text-xs text-muted-foreground font-normal">One-click downloads for filing and registers</p>
+      </CardHeader>
+      <CardContent className="flex flex-wrap gap-2">
+        <Button type="button" variant="secondary" size="sm" className="bg-amber-100/80 hover:bg-amber-100 text-amber-950 border border-amber-300/60"
+          onClick={() => authDownload(`/reports/gstr1/export?month=${month}&year=${year}`, `GSTR1_${year}_${month.padStart(2, '0')}.csv`)}>
+          GSTR-1 This Month
+        </Button>
+        <Button type="button" variant="secondary" size="sm" className="bg-amber-100/80 hover:bg-amber-100 text-amber-950 border border-amber-300/60"
+          onClick={() => authDownload(`/reports/gstr3b/export?month=${month}&year=${year}`, `GSTR3B_${year}_${month.padStart(2, '0')}.csv`)}>
+          GSTR-3B Summary
+        </Button>
+        <Button type="button" variant="secondary" size="sm" className="bg-amber-100/80 hover:bg-amber-100 text-amber-950 border border-amber-300/60"
+          onClick={() => authDownload(`/reports/purchase-register/export?from=${fyFrom}&to=${fyTo}`, 'Purchase_Register.xlsx')}>
+          Purchase Register
+        </Button>
+        <Button type="button" variant="secondary" size="sm" className="bg-amber-100/80 hover:bg-amber-100 text-amber-950 border border-amber-300/60"
+          onClick={() => authDownload(`/reports/sales-register/export?from=${fyFrom}&to=${fyTo}`, 'Sales_Register.xlsx')}>
+          Sales Register
+        </Button>
+        <Button type="button" variant="secondary" size="sm" className="bg-amber-100/80 hover:bg-amber-100 text-amber-950 border border-amber-300/60"
+          onClick={() => authDownload(`/reports/expenses/export?from=${mFrom}&to=${mTo}`, 'Expense_Report.xlsx')}>
+          Expense Report
+        </Button>
+        <Button type="button" variant="secondary" size="sm" className="bg-amber-100/80 hover:bg-amber-100 text-amber-950 border border-amber-300/60"
+          onClick={() => authDownload('/reports/pl-summary/pdf', 'PL_Summary_FY.pdf')}>
+          P&L Summary This FY
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
 
 // ────────────────────────── GSTR-1 Tab ──────────────────────────
 
@@ -422,13 +505,21 @@ function StockAgingTab() {
 
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState('gstr1');
+  const { isCA } = usePermissions();
 
   return (
     <AppLayout>
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold">Reports</h2>
-        <p className="text-sm text-muted-foreground">GST filing, sales analytics, and inventory aging</p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-2xl font-semibold">Reports</h2>
+            {isCA ? <ReadOnlyBadge /> : null}
+          </div>
+          <p className="text-sm text-muted-foreground">GST filing, sales analytics, and inventory aging</p>
+        </div>
       </div>
+
+      {isCA ? <CAQuickExports /> : null}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap">

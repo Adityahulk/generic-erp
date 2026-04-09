@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { z } = require('zod');
 const { validateBody } = require('../middleware/validate');
 const { verifyToken } = require('../middleware/auth');
-const { requireMinRole } = require('../middleware/role');
+const { requireMinRole, requireNotRole } = require('../middleware/role');
 const vc = require('../controllers/vehiclesController');
 
 const router = Router();
@@ -57,14 +57,14 @@ const transferSchema = z.object({
 // --- Routes ---
 
 router.get('/', vc.listVehicles);
-router.post('/', validateBody(createVehicleSchema), vc.createVehicle);
+router.post('/', requireNotRole('ca'), validateBody(createVehicleSchema), vc.createVehicle);
 router.get('/check-chassis', vc.checkChassisAvailable);
 router.get('/search', vc.searchVehicles);
 router.get('/expiring-insurance', requireMinRole('branch_manager'), vc.expiringInsurance);
 router.get('/inventory/summary', requireMinRole('branch_manager'), vc.inventorySummary);
 router.get('/inventory/branch/:branchId', vc.branchInventory);
 router.get('/:id', vc.getVehicle);
-router.patch('/:id', requireMinRole('branch_manager'), validateBody(updateVehicleSchema), vc.updateVehicle);
-router.post('/:id/transfer', requireMinRole('branch_manager'), validateBody(transferSchema), vc.transferVehicle);
+router.patch('/:id', requireNotRole('ca'), requireMinRole('branch_manager'), validateBody(updateVehicleSchema), vc.updateVehicle);
+router.post('/:id/transfer', requireNotRole('ca'), requireMinRole('branch_manager'), validateBody(transferSchema), vc.transferVehicle);
 
 module.exports = router;

@@ -1,12 +1,13 @@
 const { Router } = require('express');
 const { z } = require('zod');
 const { verifyToken } = require('../middleware/auth');
-const { requireRole } = require('../middleware/role');
+const { requireRole, requireNotRole } = require('../middleware/role');
 const { validateBody } = require('../middleware/validate');
 const lc = require('../controllers/leavesController');
 
 const router = Router();
 router.use(verifyToken);
+router.use(requireNotRole('ca'));
 
 const createSchema = z.object({
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

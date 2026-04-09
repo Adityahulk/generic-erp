@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const { z } = require('zod');
 const { verifyToken } = require('../middleware/auth');
-const { requireMinRole } = require('../middleware/role');
+const { requireMinRole, requireRole } = require('../middleware/role');
 const { validateBody } = require('../middleware/validate');
 const itc = require('../controllers/invoiceTemplateController');
 
@@ -24,7 +24,7 @@ const updateSchema = z.object({
   message: 'At least one of name or layout_config is required',
 });
 
-router.get('/', requireMinRole('branch_manager'), itc.listTemplates);
+router.get('/', requireRole('super_admin', 'company_admin', 'branch_manager', 'ca'), itc.listTemplates);
 router.post('/', requireMinRole('company_admin'), validateBody(createSchema), itc.createTemplate);
 router.patch('/:id', requireMinRole('company_admin'), validateBody(updateSchema), itc.updateTemplate);
 router.delete('/:id', requireMinRole('company_admin'), itc.deleteTemplate);

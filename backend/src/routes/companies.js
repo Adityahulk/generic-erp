@@ -5,6 +5,8 @@ const fs = require('fs');
 const { z } = require('zod');
 const { verifyToken } = require('../middleware/auth');
 const { requireMinRole, requireRole } = require('../middleware/role');
+
+const companyRead = requireRole('super_admin', 'company_admin', 'branch_manager', 'staff', 'ca');
 const { validateBody } = require('../middleware/validate');
 const {
   getCompany,
@@ -98,7 +100,7 @@ const createCompanySchema = z.object({
 
 router.use(verifyToken);
 
-router.get('/:id', requireMinRole('company_admin'), getCompany);
+router.get('/:id', companyRead, getCompany);
 
 router.patch(
   '/:id',

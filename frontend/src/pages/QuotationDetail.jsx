@@ -14,6 +14,8 @@ import {
 import QuotationPreviewModal from '@/components/QuotationPreviewModal';
 import api from '@/lib/api';
 import useAuthStore from '@/store/authStore';
+import { usePermissions } from '@/hooks/usePermissions';
+import ReadOnlyBadge from '@/components/ReadOnlyBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
@@ -32,6 +34,7 @@ export default function QuotationDetailPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
+  const { canWrite, isCA } = usePermissions();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [sendDialog, setSendDialog] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
@@ -60,8 +63,6 @@ export default function QuotationDetailPage() {
   const customer = data?.customer;
   const vehicle = data?.vehicle;
   const vo = data?.vehicle_override || {};
-
-  const canManage = ['super_admin', 'company_admin', 'branch_manager'].includes(user?.role);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['quotation', id] });
 
@@ -187,26 +188,27 @@ For queries call: ${branch?.phone || company?.phone || ''}`;
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-2xl font-semibold font-mono">{q.quotation_number}</h2>
               <Badge>{q.status}</Badge>
+              {isCA ? <ReadOnlyBadge /> : null}
             </div>
             <p className="text-sm text-muted-foreground mt-1">
               {formatDate(q.quotation_date)} · Valid {formatDate(q.valid_until_date)}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {canManage && q.status === 'draft' && (
+            {canWrite && q.status === 'draft' && (
               <>
                 <Button variant="outline" size="sm" onClick={() => navigate(`/quotations/${id}/edit`)}><Pencil className="h-4 w-4 mr-1" /> Edit</Button>
                 <Button size="sm" onClick={() => sendMut.mutate()} disabled={sendMut.isPending}><Send className="h-4 w-4 mr-1" /> Send</Button>
               </>
             )}
-            {canManage && q.status === 'sent' && (
+            {canWrite && q.status === 'sent' && (
               <>
                 <Button variant="outline" size="sm" onClick={() => acceptMut.mutate()} disabled={acceptMut.isPending}><Check className="h-4 w-4 mr-1" /> Accept</Button>
                 <Button variant="outline" size="sm" onClick={() => rejectMut.mutate()} disabled={rejectMut.isPending}><X className="h-4 w-4 mr-1" /> Reject</Button>
                 <Button variant="outline" size="sm" onClick={() => navigate(`/quotations/${id}/edit`)}><Pencil className="h-4 w-4 mr-1" /> Edit</Button>
               </>
             )}
-            {canManage && ['sent', 'accepted'].includes(q.status) && (
+            {canWrite && ['sent', 'accepted'].includes(q.status) && (
               <Button size="sm" onClick={() => convertMut.mutate()} disabled={convertMut.isPending}>
                 <RefreshCw className="h-4 w-4 mr-1" /> Convert to Invoice
               </Button>
@@ -216,13 +218,13 @@ For queries call: ${branch?.phone || company?.phone || ''}`;
                 <Link to="/sales"><FileText className="h-4 w-4 mr-1" /> View invoices</Link>
               </Button>
             )}
-            {['rejected', 'expired'].includes(q.status) && canManage && (
+            {['rejected', 'expired'].includes(q.status) && canWrite && (
               <Button variant="outline" size="sm" onClick={() => dupMut.mutate()} disabled={dupMut.isPending}>Duplicate</Button>
             )}
             <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}><Eye className="h-4 w-4 mr-1" /> Preview</Button>
             <Button variant="outline" size="sm" onClick={downloadPdf}><FileDown className="h-4 w-4 mr-1" /> PDF</Button>
-            {canManage && <Button variant="outline" size="sm" onClick={copyShare}><Link2 className="h-4 w-4 mr-1" /> Share</Button>}
-            {canManage && q.status === 'draft' && (
+            {canWrite && <Button variant="outline" size="sm" onClick={copyShare}><Link2 className="h-4 w-4 mr-1" /> Share</Button>}
+            {canWrite && q.status === 'draft' && (
               <Button variant="ghost" size="sm" className="text-destructive" onClick={() => { if (window.confirm('Delete this draft?')) delMut.mutate(); }}>
                 <Trash2 className="h-4 w-4" />
               </Button>

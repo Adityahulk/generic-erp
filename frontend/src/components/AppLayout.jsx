@@ -1,29 +1,12 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, createElement } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import useAuthStore from '@/store/authStore';
-import {
-  LayoutDashboard, Car, FileText, Landmark, Receipt,
-  BarChart3, Clock, Settings, LogOut, Search, X, Loader2, Menu, ShoppingBag,
-} from 'lucide-react';
+import { Car, LogOut, Search, X, Loader2, Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
-
-const navItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, hideFor: ['ca', 'staff'] },
-  { to: '/inventory', label: 'Inventory', icon: Car, hideFor: ['ca', 'staff'] },
-  { to: '/purchases', label: 'Purchases', icon: ShoppingBag, hideFor: ['ca', 'staff'] },
-  { to: '/sales', label: 'Invoices', icon: FileText, onlyFor: ['ca'] },
-  { to: '/sales', label: 'Sales', icon: FileText, hideFor: ['ca', 'staff'] },
-  { to: '/quotations', label: 'Quotations', icon: FileText, hideFor: ['ca', 'staff'] },
-  { to: '/loans', label: 'Loans', icon: Landmark, hideFor: ['ca', 'staff'] },
-  { to: '/expenses', label: 'Expenses', icon: Receipt, hideFor: ['ca', 'staff'] },
-  { to: '/reports', label: 'Reports', icon: BarChart3, onlyFor: ['super_admin', 'company_admin', 'ca'] },
-  { to: '/attendance', label: 'Attendance & leave', icon: Clock, onlyFor: ['staff'] },
-  { to: '/attendance', label: 'Attendance', icon: Clock, hideFor: ['ca', 'staff'] },
-  { to: '/settings', label: 'Settings', icon: Settings, adminOnly: true },
-];
+import { navItemsForRole } from '@/config/navConfig';
 
 function GlobalSearch() {
   const [open, setOpen] = useState(false);
@@ -168,17 +151,8 @@ function GlobalSearch() {
   );
 }
 
-function filterNav(role) {
-  return navItems.filter(({ adminOnly, hideFor, onlyFor }) => {
-    if (adminOnly && !['super_admin', 'company_admin'].includes(role)) return false;
-    if (hideFor && hideFor.includes(role)) return false;
-    if (onlyFor && !onlyFor.includes(role)) return false;
-    return true;
-  });
-}
-
 function MobileDrawer({ open, onClose, user, onLogout }) {
-  const filteredItems = filterNav(user?.role);
+  const filteredItems = navItemsForRole(user?.role);
 
   useEffect(() => {
     if (open) document.body.style.overflow = 'hidden';
@@ -203,12 +177,19 @@ function MobileDrawer({ open, onClose, user, onLogout }) {
         </div>
 
         <div className="px-3 py-2 border-b border-border">
-          <p className="text-sm font-medium px-2">{user?.name}</p>
-          <p className="text-xs text-muted-foreground px-2">{user?.role?.replace('_', ' ')}</p>
+          <div className="flex items-center gap-2 px-2 flex-wrap">
+            <p className="text-sm font-medium">{user?.name}</p>
+            {user?.role === 'ca' && (
+              <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300/80">
+                CA
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground px-2 mt-0.5">{user?.role?.replace('_', ' ')}</p>
         </div>
 
         <nav className="flex-1 overflow-y-auto py-2 px-3">
-          {filteredItems.map(({ to, label, icon: Icon }) => (
+          {filteredItems.map(({ to, label, icon }) => (
             <NavLink
               key={`${to}-${label}`}
               to={to}
@@ -222,7 +203,7 @@ function MobileDrawer({ open, onClose, user, onLogout }) {
                 )
               }
             >
-              <Icon className="h-4.5 w-4.5" />
+              {createElement(icon, { className: 'h-4.5 w-4.5' })}
               {label}
             </NavLink>
           ))}
@@ -268,7 +249,7 @@ export default function AppLayout({ children }) {
             <span className="text-lg font-bold hidden sm:inline">MVG ERP</span>
           </div>
           <nav className="hidden md:flex items-center gap-1">
-            {filterNav(user?.role).map(({ to, label, icon: Icon }) => (
+            {navItemsForRole(user?.role).map(({ to, label, icon }) => (
                 <NavLink
                   key={`${to}-${label}`}
                   to={to}
@@ -281,7 +262,7 @@ export default function AppLayout({ children }) {
                     )
                   }
                 >
-                  <Icon className="h-4 w-4" />
+                  {createElement(icon, { className: 'h-4 w-4' })}
                   {label}
                 </NavLink>
               ))}
@@ -289,8 +270,14 @@ export default function AppLayout({ children }) {
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
           {showGlobalSearch ? <GlobalSearch /> : null}
-          <span className="text-sm text-muted-foreground hidden lg:inline">
-            {user?.name} <span className="text-xs">({user?.role})</span>
+          <span className="text-sm text-muted-foreground hidden lg:inline-flex items-center gap-2">
+            <span>{user?.name}</span>
+            {user?.role === 'ca' && (
+              <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300/80">
+                CA
+              </span>
+            )}
+            <span className="text-xs">({user?.role})</span>
           </span>
           <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={handleLogout} title="Logout">
             <LogOut className="h-4 w-4" />

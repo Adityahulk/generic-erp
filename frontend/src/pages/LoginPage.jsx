@@ -26,7 +26,7 @@ export default function LoginPage() {
       const { data } = await api.post('/auth/login', { email, password });
       login(data);
       const role = data.user?.role;
-      if (role === 'ca') navigate('/reports');
+      if (role === 'ca') navigate('/ca/dashboard');
       else if (role === 'staff') navigate('/attendance');
       else navigate('/dashboard');
     } catch (err) {

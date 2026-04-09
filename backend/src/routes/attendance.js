@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { verifyToken } = require('../middleware/auth');
-const { requireMinRole } = require('../middleware/role');
+const { requireNotRole } = require('../middleware/role');
 const {
   clockIn,
   clockOut,
@@ -12,6 +12,7 @@ const {
 const router = Router();
 
 router.use(verifyToken);
+router.use(requireNotRole('ca'));
 
 router.post('/clockin', clockIn);
 router.post('/clockout', clockOut);

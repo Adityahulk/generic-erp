@@ -15,7 +15,8 @@ import SortableTableHead, { sortData } from '@/components/SortableTableHead';
 import { Loader2, Plus, ChevronLeft, ChevronRight, Receipt } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import api from '@/lib/api';
-import useAuthStore from '@/store/authStore';
+import { usePermissions } from '@/hooks/usePermissions';
+import ReadOnlyBadge from '@/components/ReadOnlyBadge';
 
 const CATEGORIES = ['Tea/Coffee', 'Electricity', 'Salary', 'Rent', 'Maintenance', 'Transport', 'Other'];
 
@@ -140,7 +141,7 @@ function AddExpenseDialog({ open, onOpenChange }) {
 // ─── Main Expenses Page ──────────────────────────────────────
 
 export default function ExpensesPage() {
-  const user = useAuthStore((s) => s.user);
+  const { canWrite, isCA } = usePermissions();
   const [addOpen, setAddOpen] = useState(false);
   const monthRange = getMonthRange();
   const [dateFrom, setDateFrom] = useState(monthRange.from);
@@ -175,13 +176,14 @@ export default function ExpensesPage() {
   const summary = summaryData?.summary || [];
   const grandTotal = summaryData?.grand_total || 0;
 
-  const canManage = ['super_admin', 'company_admin', 'branch_manager'].includes(user?.role);
-
   return (
     <AppLayout>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <h2 className="text-2xl font-semibold">Expenses</h2>
-        {canManage && (
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-2xl font-semibold">Expenses</h2>
+          {isCA ? <ReadOnlyBadge /> : null}
+        </div>
+        {canWrite && (
           <Button onClick={() => setAddOpen(true)}>
             <Plus className="mr-2 h-4 w-4" /> Add Expense
           </Button>
@@ -232,7 +234,7 @@ export default function ExpensesPage() {
         {isLoading ? (
           <div className="p-4"><TableSkeleton rows={6} columns={6} /></div>
         ) : expenses.length === 0 ? (
-          <EmptyState icon={Receipt} title="No expenses found" description="No expenses match your filters. Add one to get started." actionLabel={canManage ? 'Add Expense' : undefined} onAction={canManage ? () => setAddOpen(true) : undefined} />
+          <EmptyState icon={Receipt} title="No expenses found" description="No expenses match your filters. Add one to get started." actionLabel={canWrite ? 'Add Expense' : undefined} onAction={canWrite ? () => setAddOpen(true) : undefined} />
         ) : (
         <Table>
           <thead className="[&_tr]:border-b">

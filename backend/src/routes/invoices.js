@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { z } = require('zod');
 const { validateBody } = require('../middleware/validate');
 const { verifyToken } = require('../middleware/auth');
-const { requireMinRole } = require('../middleware/role');
+const { requireMinRole, requireNotRole } = require('../middleware/role');
 const ic = require('../controllers/invoicesController');
 const {
   generateInvoicePdf,
@@ -74,7 +74,7 @@ router.get('/einvoice/status', (_req, res) => {
   });
 });
 
-router.post('/', validateBody(createInvoiceSchema), ic.createInvoice);
+router.post('/', requireNotRole('ca'), validateBody(createInvoiceSchema), ic.createInvoice);
 router.get('/', ic.listInvoices);
 
 router.get('/:id/preview', async (req, res) => {
@@ -119,12 +119,12 @@ router.get('/:id/pdf', async (req, res) => {
 });
 
 router.get('/:id', ic.getInvoice);
-router.patch('/:id/cancel', requireMinRole('branch_manager'), ic.cancelInvoice);
-router.patch('/:id/confirm', ic.confirmInvoice);
+router.patch('/:id/cancel', requireNotRole('ca'), requireMinRole('branch_manager'), ic.cancelInvoice);
+router.patch('/:id/confirm', requireNotRole('ca'), ic.confirmInvoice);
 
 // ─── E-Invoice (NIC IRP) Routes ──────────────────────────────
 
-router.post('/:id/einvoice/generate', requireMinRole('branch_manager'), async (req, res) => {
+router.post('/:id/einvoice/generate', requireNotRole('ca'), requireMinRole('branch_manager'), async (req, res) => {
   try {
     const company_id = req.user.company_id;
     const invoiceId = req.params.id;
@@ -174,7 +174,7 @@ router.post('/:id/einvoice/generate', requireMinRole('branch_manager'), async (r
   }
 });
 
-router.post('/:id/einvoice/cancel', requireMinRole('branch_manager'), async (req, res) => {
+router.post('/:id/einvoice/cancel', requireNotRole('ca'), requireMinRole('branch_manager'), async (req, res) => {
   try {
     const company_id = req.user.company_id;
     const invoiceId = req.params.id;

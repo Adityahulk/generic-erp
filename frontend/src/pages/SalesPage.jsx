@@ -21,20 +21,14 @@ import InvoicePreviewModal from '@/components/InvoicePreviewModal';
 import { toast } from 'sonner';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import api from '@/lib/api';
-import useAuthStore from '@/store/authStore';
+import { usePermissions } from '@/hooks/usePermissions';
+import ReadOnlyBadge from '@/components/ReadOnlyBadge';
 
 const INV_STATUS_BADGE = {
   draft: 'warning', confirmed: 'success', cancelled: 'destructive',
 };
 
 // ─── Hooks ───────────────────────────────────────────────────
-
-function useBranches() {
-  return useQuery({
-    queryKey: ['branches'],
-    queryFn: () => api.get('/branches').then((r) => r.data.branches),
-  });
-}
 
 function useInvoices(filters) {
   return useQuery({
@@ -417,7 +411,6 @@ function NewSaleDialog({ open, onOpenChange }) {
 // ─── Main Sales Page ─────────────────────────────────────────
 
 export default function SalesPage() {
-  const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
   const [saleOpen, setSaleOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -425,8 +418,6 @@ export default function SalesPage() {
   const [searchInput, setSearchInput] = useState('');
   const [previewInvoice, setPreviewInvoice] = useState(null);
   const [pdfTemplateChoice, setPdfTemplateChoice] = useState({});
-  const { data: branches } = useBranches();
-
   const { data: invoiceTemplates = [] } = useQuery({
     queryKey: ['invoice-templates'],
     queryFn: () => api.get('/invoice-templates').then((r) => r.data.templates),
@@ -506,13 +497,16 @@ export default function SalesPage() {
     }
   };
 
-  const canManage = ['super_admin', 'company_admin', 'branch_manager'].includes(user?.role);
+  const { canWrite, isCA } = usePermissions();
 
   return (
     <AppLayout>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <h2 className="text-2xl font-semibold">Sales & Invoices</h2>
-        {canManage && (
+        <div className="flex flex-wrap items-center gap-3 min-w-0">
+          <h2 className="text-2xl font-semibold">Sales & Invoices</h2>
+          {isCA ? <ReadOnlyBadge /> : null}
+        </div>
+        {canWrite && (
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setImportOpen(true)}>
               <Upload className="mr-2 h-4 w-4" /> Import
@@ -524,7 +518,7 @@ export default function SalesPage() {
         )}
       </div>
 
-      {canManage && (
+      {canWrite && (
         <BulkImport
           type="sales"
           open={importOpen}
@@ -651,28 +645,28 @@ export default function SalesPage() {
                           </Button>
                         </>
                       )}
-                      {eInvoiceStatus?.enabled && inv.status === 'confirmed' && (!inv.irn_status || inv.irn_status === 'pending' || inv.irn_status === 'failed') && canManage && (
+                      {eInvoiceStatus?.enabled && inv.status === 'confirmed' && (!inv.irn_status || inv.irn_status === 'pending' || inv.irn_status === 'failed') && canWrite && (
                         <Button variant="ghost" size="sm" title="Generate e-Invoice (IRN)"
                           onClick={() => { if (window.confirm('Generate e-Invoice for this invoice?')) generateEInvoiceMutation.mutate(inv.id); }}
                           disabled={generateEInvoiceMutation.isPending}>
                           <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
                         </Button>
                       )}
-                      {eInvoiceStatus?.enabled && inv.irn_status === 'generated' && canManage && (
+                      {eInvoiceStatus?.enabled && inv.irn_status === 'generated' && canWrite && (
                         <Button variant="ghost" size="sm" title="Cancel e-Invoice IRN"
                           onClick={() => { if (window.confirm('Cancel the e-Invoice IRN? This is only possible within 24 hours.')) cancelEInvoiceMutation.mutate(inv.id); }}
                           disabled={cancelEInvoiceMutation.isPending}>
                           <ShieldX className="h-3.5 w-3.5 text-amber-600" />
                         </Button>
                       )}
-                      {inv.status === 'draft' && (
+                      {inv.status === 'draft' && canWrite && (
                         <Button variant="ghost" size="sm" title="Confirm"
                           onClick={() => confirmMutation.mutate(inv.id)}
                           disabled={confirmMutation.isPending}>
                           <Check className="h-3.5 w-3.5 text-emerald-600" />
                         </Button>
                       )}
-                      {inv.status !== 'cancelled' && canManage && (
+                      {inv.status !== 'cancelled' && canWrite && (
                         <Button variant="ghost" size="sm" title="Cancel Invoice"
                           onClick={() => { if (window.confirm('Cancel this invoice?')) cancelMutation.mutate(inv.id); }}
                           disabled={cancelMutation.isPending}>

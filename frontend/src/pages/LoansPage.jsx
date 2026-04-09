@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import AppLayout from '@/components/AppLayout';
@@ -15,7 +15,8 @@ import SortableTableHead, { sortData } from '@/components/SortableTableHead';
 import { Loader2, CheckCircle, ChevronLeft, ChevronRight, AlertTriangle, Landmark } from 'lucide-react';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
 import api from '@/lib/api';
-import useAuthStore from '@/store/authStore';
+import { usePermissions } from '@/hooks/usePermissions';
+import ReadOnlyBadge from '@/components/ReadOnlyBadge';
 
 const STATUS_BADGE = { active: 'success', overdue: 'destructive', closed: 'secondary' };
 
@@ -150,7 +151,7 @@ function AddLoanDialog({ open, onOpenChange }) {
 // ─── Main Loans Page ─────────────────────────────────────────
 
 export default function LoansPage() {
-  const user = useAuthStore((s) => s.user);
+  const { canWrite, isCA } = usePermissions();
   const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [filters, setFilters] = useState({ page: 1, limit: 25, status: '', overdue: '' });
@@ -166,7 +167,6 @@ export default function LoansPage() {
   const total = data?.total || 0;
   const totalPages = Math.ceil(total / filters.limit) || 1;
 
-  const canManage = ['super_admin', 'company_admin', 'branch_manager'].includes(user?.role);
   const handleSort = (key, dir) => { setSortKey(key); setSortDir(dir); };
 
   const closeMutation = useMutation({
@@ -184,8 +184,11 @@ export default function LoansPage() {
   return (
     <AppLayout>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <h2 className="text-2xl font-semibold">Loans</h2>
-        {canManage && (
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-2xl font-semibold">Loans</h2>
+          {isCA ? <ReadOnlyBadge /> : null}
+        </div>
+        {canWrite && (
           <Button onClick={() => setAddOpen(true)}>Add Loan</Button>
         )}
       </div>
@@ -225,7 +228,7 @@ export default function LoansPage() {
               <SortableTableHead sortKey="due_date" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort}>Due Date</SortableTableHead>
               <SortableTableHead sortKey="status" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort}>Status</SortableTableHead>
               <SortableTableHead sortKey="total_penalty_accrued" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="text-right">Penalty</SortableTableHead>
-              {canManage && <th className="h-10 px-3 text-right align-middle font-medium text-muted-foreground">Actions</th>}
+              {canWrite && <th className="h-10 px-3 text-right align-middle font-medium text-muted-foreground">Actions</th>}
             </tr>
           </thead>
           <TableBody>
@@ -252,7 +255,7 @@ export default function LoansPage() {
                   <TableCell className={cn('text-right font-mono', Number(loan.total_penalty_accrued) > 0 && 'text-destructive font-medium')}>
                     {Number(loan.total_penalty_accrued) > 0 ? formatCurrency(loan.total_penalty_accrued) : '—'}
                   </TableCell>
-                  {canManage && (
+                  {canWrite && (
                     <TableCell className="text-right">
                       {loan.status !== 'closed' && (
                         <Button variant="ghost" size="sm" title="Mark Closed"

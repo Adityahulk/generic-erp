@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { z } = require('zod');
 const { validateBody } = require('../middleware/validate');
 const { verifyToken } = require('../middleware/auth');
-const { requireMinRole } = require('../middleware/role');
+const { requireMinRole, requireNotRole } = require('../middleware/role');
 const lc = require('../controllers/loansController');
 
 const router = Router();
@@ -20,8 +20,8 @@ const createLoanSchema = z.object({
 
 router.get('/overdue', lc.listOverdue);
 router.get('/', lc.listLoans);
-router.post('/', validateBody(createLoanSchema), lc.createLoan);
+router.post('/', requireNotRole('ca'), validateBody(createLoanSchema), lc.createLoan);
 router.get('/:id', lc.getLoan);
-router.patch('/:id/close', requireMinRole('branch_manager'), lc.closeLoan);
+router.patch('/:id/close', requireNotRole('ca'), requireMinRole('branch_manager'), lc.closeLoan);
 
 module.exports = router;

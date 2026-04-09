@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { z } = require('zod');
 const { validateBody } = require('../middleware/validate');
 const { verifyToken } = require('../middleware/auth');
+const { requireNotRole } = require('../middleware/role');
 const cc = require('../controllers/customersController');
 
 const router = Router();
@@ -15,7 +16,7 @@ const createCustomerSchema = z.object({
   gstin: z.string().max(15).optional(),
 });
 
-router.post('/', validateBody(createCustomerSchema), cc.createCustomer);
+router.post('/', requireNotRole('ca'), validateBody(createCustomerSchema), cc.createCustomer);
 router.get('/', cc.listCustomers);
 router.get('/:id', cc.getCustomer);
 

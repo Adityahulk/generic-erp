@@ -2,13 +2,15 @@ const { Router } = require('express');
 const { z } = require('zod');
 const { validateBody } = require('../middleware/validate');
 const { verifyToken } = require('../middleware/auth');
-const { requireMinRole } = require('../middleware/role');
+const { requireMinRole, requireNotRole, requireRole } = require('../middleware/role');
 const pc = require('../controllers/purchaseController');
 const { generatePurchaseOrderPdf } = require('../services/pdfService');
 
 const router = Router();
 router.use(verifyToken);
-router.use(requireMinRole('branch_manager'));
+
+const poRead = requireRole('super_admin', 'company_admin', 'branch_manager', 'ca');
+const poWrite = [requireNotRole('ca'), requireMinRole('branch_manager')];
 
 const poItemSchema = z.object({
   description: z.string().min(1).max(500),
@@ -65,11 +67,11 @@ const receiveSchema = z.object({
   })).min(1),
 });
 
-router.get('/receipts', pc.listAllReceipts);
-router.post('/', validateBody(createPoSchema), pc.createPurchaseOrder);
-router.get('/', pc.listPurchaseOrders);
-router.get('/:id/receipts', pc.listReceiptsForPo);
-router.get('/:id/pdf', async (req, res) => {
+router.get('/receipts', poRead, pc.listAllReceipts);
+router.post('/', ...poWrite, validateBody(createPoSchema), pc.createPurchaseOrder);
+router.get('/', poRead, pc.listPurchaseOrders);
+router.get('/:id/receipts', poRead, pc.listReceiptsForPo);
+router.get('/:id/pdf', poRead, async (req, res) => {
   try {
     const company_id = req.user.company_id;
     const data = await pc.fetchFullPurchase(req.params.id, company_id);
@@ -87,10 +89,10 @@ router.get('/:id/pdf', async (req, res) => {
     res.status(500).json({ error: 'PDF generation failed' });
   }
 });
-router.post('/:id/confirm', pc.confirmPurchaseOrder);
-router.post('/:id/cancel', pc.cancelPurchaseOrder);
-router.post('/:id/receive', validateBody(receiveSchema), pc.receivePurchase);
-router.get('/:id', pc.getPurchaseOrder);
-router.patch('/:id', validateBody(updatePoSchema), pc.updatePurchaseOrder);
+router.post('/:id/confirm', ...poWrite, pc.confirmPurchaseOrder);
+router.post('/:id/cancel', ...poWrite, pc.cancelPurchaseOrder);
+router.post('/:id/receive', ...poWrite, validateBody(receiveSchema), pc.receivePurchase);
+router.get('/:id', poRead, pc.getPurchaseOrder);
+router.patch('/:id', ...poWrite, validateBody(updatePoSchema), pc.updatePurchaseOrder);
 
 module.exports = router;

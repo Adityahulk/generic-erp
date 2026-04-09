@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import api from '@/lib/api';
+import { usePermissions } from '@/hooks/usePermissions';
+import ReadOnlyBadge from '@/components/ReadOnlyBadge';
 function useBranches() {
   return useQuery({
     queryKey: ['branches'],
@@ -31,6 +33,7 @@ const PO_STATUS_BADGE = {
 };
 
 export default function PurchaseList() {
+  const { canWrite, isCA } = usePermissions();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState('orders');
   const [importOpen, setImportOpen] = useState(false);
@@ -122,27 +125,34 @@ export default function PurchaseList() {
   return (
     <AppLayout>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <h2 className="text-2xl font-semibold">Purchases</h2>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setImportOpen(true)}>
-            <Upload className="h-4 w-4 mr-2" /> Import
-          </Button>
-          <Button asChild>
-            <Link to="/purchases/new"><Plus className="h-4 w-4 mr-2" /> New Purchase Order</Link>
-          </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-2xl font-semibold">Purchases</h2>
+          {isCA ? <ReadOnlyBadge /> : null}
         </div>
+        {canWrite && (
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="h-4 w-4 mr-2" /> Import
+            </Button>
+            <Button asChild>
+              <Link to="/purchases/new"><Plus className="h-4 w-4 mr-2" /> New Purchase Order</Link>
+            </Button>
+          </div>
+        )}
       </div>
 
-      <BulkImport
-        type="purchases"
-        open={importOpen}
-        onOpenChange={setImportOpen}
-        onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ['purchases'] });
-          queryClient.invalidateQueries({ queryKey: ['purchase-receipts'] });
-          queryClient.invalidateQueries({ queryKey: ['vehicles'] });
-        }}
-      />
+      {canWrite && (
+        <BulkImport
+          type="purchases"
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['purchases'] });
+            queryClient.invalidateQueries({ queryKey: ['purchase-receipts'] });
+            queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+          }}
+        />
+      )}
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
@@ -232,12 +242,12 @@ export default function PurchaseList() {
                         <Button variant="ghost" size="sm" asChild title="View">
                           <Link to={`/purchases/${po.id}`}><Eye className="h-3.5 w-3.5" /></Link>
                         </Button>
-                        {po.status === 'draft' && (
+                        {po.status === 'draft' && canWrite && (
                           <Button variant="ghost" size="sm" asChild title="Edit">
                             <Link to={`/purchases/${po.id}/edit`}><Pencil className="h-3.5 w-3.5" /></Link>
                           </Button>
                         )}
-                        {po.status === 'confirmed' && (
+                        {po.status === 'confirmed' && canWrite && (
                           <Button variant="ghost" size="sm" asChild title="Receive">
                             <Link to={`/purchases/${po.id}/receive`}><Truck className="h-3.5 w-3.5" /></Link>
                           </Button>
@@ -305,7 +315,9 @@ export default function PurchaseList() {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input className="pl-8" placeholder="Search name or GSTIN..." value={supplierSearch} onChange={(e) => setSupplierSearch(e.target.value)} />
             </div>
-            <Button onClick={openNewSupplier}><Plus className="h-4 w-4 mr-2" /> Add supplier</Button>
+            {canWrite && (
+              <Button onClick={openNewSupplier}><Plus className="h-4 w-4 mr-2" /> Add supplier</Button>
+            )}
           </div>
           <div className="bg-card rounded-lg border border-border overflow-x-auto">
             <Table>
@@ -330,7 +342,11 @@ export default function PurchaseList() {
                     <TableCell>{s.state || '—'}</TableCell>
                     <TableCell>{s.is_active ? 'Yes' : 'No'}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => openEditSupplier(s)}>Edit</Button>
+                      {canWrite ? (
+                        <Button variant="ghost" size="sm" onClick={() => openEditSupplier(s)}>Edit</Button>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">—</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

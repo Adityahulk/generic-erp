@@ -21,11 +21,12 @@ import PurchaseReceive from './pages/purchases/PurchaseReceive';
 import QuotationsPage from './pages/Quotations';
 import QuotationFormPage from './pages/QuotationForm';
 import QuotationDetailPage from './pages/QuotationDetail';
+import CADashboard from './pages/ca/CADashboard';
 import useAuthStore from './store/authStore';
 
 function DefaultRedirect() {
   const { user } = useAuthStore();
-  if (user?.role === 'ca') return <Navigate to="/reports" replace />;
+  if (user?.role === 'ca') return <Navigate to="/ca/dashboard" replace />;
   if (user?.role === 'staff') return <Navigate to="/attendance" replace />;
   return <Navigate to="/dashboard" replace />;
 }
@@ -54,28 +55,47 @@ export default function App() {
               <Route path="/reports" element={<ReportsPage />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager', 'ca']} />}>
+            <Route element={<ProtectedRoute allowedRoles={['ca', 'super_admin', 'company_admin']} />}>
+              <Route path="/ca/dashboard" element={<CADashboard />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager', 'ca', 'staff']} />}>
               <Route path="/sales" element={<SalesPage />} />
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager']} />}>
-              <Route path="/quotations" element={<QuotationsPage />} />
-              <Route path="/quotations/new" element={<QuotationFormPage />} />
-              <Route path="/quotations/:id/edit" element={<QuotationFormPage />} />
-              <Route path="/quotations/:id" element={<QuotationDetailPage />} />
+            <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager', 'ca']} />}>
+              <Route path="/loans" element={<LoansPage />} />
+              <Route path="/expenses" element={<ExpensesPage />} />
             </Route>
 
             <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager']} />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/inventory" element={<InventoryPage />} />
-              <Route path="/vehicles/:id" element={<VehicleDetailPage />} />
               <Route path="/purchases/new" element={<PurchaseForm />} />
               <Route path="/purchases/:id/edit" element={<PurchaseForm />} />
               <Route path="/purchases/:id/receive" element={<PurchaseReceive />} />
-              <Route path="/purchases/:id" element={<PurchaseDetail />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager', 'ca']} />}>
               <Route path="/purchases" element={<PurchaseList />} />
-              <Route path="/loans" element={<LoansPage />} />
-              <Route path="/expenses" element={<ExpensesPage />} />
+              <Route path="/purchases/:id" element={<PurchaseDetail />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager']} />}>
+              <Route path="/quotations/new" element={<QuotationFormPage />} />
+              <Route path="/quotations/:id/edit" element={<QuotationFormPage />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager', 'ca', 'staff']} />}>
+              <Route path="/quotations" element={<QuotationsPage />} />
+              <Route path="/quotations/:id" element={<QuotationDetailPage />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager', 'staff']} />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/inventory" element={<InventoryPage />} />
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager', 'ca']} />}>
+              <Route path="/vehicles/:id" element={<VehicleDetailPage />} />
             </Route>
 
             <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager', 'staff']} />}>

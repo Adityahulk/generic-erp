@@ -7,6 +7,8 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Loader2, Pencil, Truck, Download, ArrowLeft } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import api from '@/lib/api';
+import { usePermissions } from '@/hooks/usePermissions';
+import ReadOnlyBadge from '@/components/ReadOnlyBadge';
 
 const PO_STATUS_BADGE = {
   draft: 'secondary',
@@ -16,6 +18,7 @@ const PO_STATUS_BADGE = {
 };
 
 export default function PurchaseDetail() {
+  const { canWrite, isCA } = usePermissions();
   const { id } = useParams();
   const { data, isLoading } = useQuery({
     queryKey: ['purchase', id],
@@ -56,13 +59,16 @@ export default function PurchaseDetail() {
         <Button variant="ghost" size="sm" asChild>
           <Link to="/purchases"><ArrowLeft className="h-4 w-4 mr-1" /> Back</Link>
         </Button>
-        <h2 className="text-2xl font-semibold flex-1">{po.po_number}</h2>
+        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+          <h2 className="text-2xl font-semibold">{po.po_number}</h2>
+          {isCA ? <ReadOnlyBadge /> : null}
+        </div>
         <Badge variant={PO_STATUS_BADGE[po.status]}>{po.status}</Badge>
         <Button variant="outline" size="sm" onClick={downloadPdf}><Download className="h-4 w-4 mr-2" /> PDF</Button>
-        {po.status === 'draft' && (
+        {po.status === 'draft' && canWrite && (
           <Button size="sm" asChild><Link to={`/purchases/${id}/edit`}><Pencil className="h-4 w-4 mr-2" /> Edit</Link></Button>
         )}
-        {po.status === 'confirmed' && (
+        {po.status === 'confirmed' && canWrite && (
           <Button size="sm" asChild><Link to={`/purchases/${id}/receive`}><Truck className="h-4 w-4 mr-2" /> Receive</Link></Button>
         )}
       </div>

@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { z } = require('zod');
 const { validateBody } = require('../middleware/validate');
 const { verifyToken } = require('../middleware/auth');
-const { requireMinRole } = require('../middleware/role');
+const { requireMinRole, requireNotRole, requireRole } = require('../middleware/role');
 const qc = require('../controllers/quotationsController');
 
 const router = Router();
@@ -65,24 +65,27 @@ const updateQuotationSchema = z.object({
 
 const previewBodySchema = createQuotationSchema;
 
-router.post('/preview-html', requireMinRole('branch_manager'), validateBody(previewBodySchema), qc.previewQuotationHtmlFromBody);
+const qRead = requireRole('super_admin', 'company_admin', 'branch_manager', 'ca', 'staff');
+const qWrite = [requireNotRole('ca'), requireMinRole('branch_manager')];
 
-router.post('/', requireMinRole('branch_manager'), validateBody(createQuotationSchema), qc.createQuotation);
-router.get('/', requireMinRole('branch_manager'), qc.listQuotations);
+router.post('/preview-html', qRead, validateBody(previewBodySchema), qc.previewQuotationHtmlFromBody);
 
-router.get('/:id/pdf', requireMinRole('branch_manager'), qc.getQuotationPdf);
-router.get('/:id/preview-html', requireMinRole('branch_manager'), qc.getQuotationPreviewHtml);
-router.get('/:id/share-link', requireMinRole('branch_manager'), qc.shareQuotationLink);
+router.post('/', ...qWrite, validateBody(createQuotationSchema), qc.createQuotation);
+router.get('/', qRead, qc.listQuotations);
 
-router.post('/:id/send', requireMinRole('branch_manager'), qc.sendQuotation);
-router.post('/:id/accept', requireMinRole('branch_manager'), qc.acceptQuotation);
-router.post('/:id/reject', requireMinRole('branch_manager'), qc.rejectQuotation);
-router.post('/:id/convert', requireMinRole('branch_manager'), qc.convertToInvoice);
-router.post('/:id/duplicate', requireMinRole('branch_manager'), qc.duplicateQuotation);
+router.get('/:id/pdf', qRead, qc.getQuotationPdf);
+router.get('/:id/preview-html', qRead, qc.getQuotationPreviewHtml);
+router.get('/:id/share-link', qRead, qc.shareQuotationLink);
 
-router.patch('/:id', requireMinRole('branch_manager'), validateBody(updateQuotationSchema), qc.updateQuotation);
-router.delete('/:id', requireMinRole('branch_manager'), qc.deleteQuotation);
+router.post('/:id/send', ...qWrite, qc.sendQuotation);
+router.post('/:id/accept', ...qWrite, qc.acceptQuotation);
+router.post('/:id/reject', ...qWrite, qc.rejectQuotation);
+router.post('/:id/convert', ...qWrite, qc.convertToInvoice);
+router.post('/:id/duplicate', ...qWrite, qc.duplicateQuotation);
 
-router.get('/:id', requireMinRole('branch_manager'), qc.getQuotation);
+router.patch('/:id', ...qWrite, validateBody(updateQuotationSchema), qc.updateQuotation);
+router.delete('/:id', ...qWrite, qc.deleteQuotation);
+
+router.get('/:id', qRead, qc.getQuotation);
 
 module.exports = router;

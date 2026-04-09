@@ -9,7 +9,8 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BulkImport from '@/components/BulkImport';
 import api from '@/lib/api';
-import useAuthStore from '@/store/authStore';
+import { usePermissions } from '@/hooks/usePermissions';
+import ReadOnlyBadge from '@/components/ReadOnlyBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import {
   Plus, Search, Loader2, Eye, Pencil, Send, FileDown, Link2, FileText,
@@ -38,7 +39,7 @@ const STATUS_BADGE = {
 export default function QuotationsPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const user = useAuthStore((s) => s.user);
+  const { canWrite, isCA } = usePermissions();
   const [status, setStatus] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
@@ -85,13 +86,14 @@ export default function QuotationsPage() {
     }
   };
 
-  const canEdit = ['super_admin', 'company_admin', 'branch_manager'].includes(user?.role);
-
   return (
     <AppLayout>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <h2 className="text-2xl font-semibold">Quotations</h2>
-        {canEdit && (
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-2xl font-semibold">Quotations</h2>
+          {isCA ? <ReadOnlyBadge /> : null}
+        </div>
+        {canWrite && (
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setImportOpen(true)}>
               Import
@@ -103,12 +105,14 @@ export default function QuotationsPage() {
         )}
       </div>
 
-      <BulkImport
-        type="quotations"
-        open={importOpen}
-        onOpenChange={setImportOpen}
-        onSuccess={() => qc.invalidateQueries({ queryKey: ['quotations'] })}
-      />
+      {canWrite && (
+        <BulkImport
+          type="quotations"
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          onSuccess={() => qc.invalidateQueries({ queryKey: ['quotations'] })}
+        />
+      )}
 
       <div className="flex flex-col gap-4 mb-4">
         <div className="relative max-w-md">
@@ -182,12 +186,12 @@ export default function QuotationsPage() {
                       <Button variant="ghost" size="sm" title="View" onClick={() => navigate(`/quotations/${q.id}`)}>
                         <Eye className="h-3.5 w-3.5" />
                       </Button>
-                      {canEdit && ['draft', 'sent'].includes(q.status) && (
+                      {canWrite && ['draft', 'sent'].includes(q.status) && (
                         <Button variant="ghost" size="sm" title="Edit" onClick={() => navigate(`/quotations/${q.id}/edit`)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
                       )}
-                      {canEdit && q.status === 'draft' && (
+                      {canWrite && q.status === 'draft' && (
                         <Button variant="ghost" size="sm" title="Send" onClick={async () => {
                           try {
                             await api.post(`/quotations/${q.id}/send`);
@@ -201,7 +205,7 @@ export default function QuotationsPage() {
                           <Send className="h-3.5 w-3.5" />
                         </Button>
                       )}
-                      {canEdit && ['sent', 'accepted'].includes(q.status) && (
+                      {canWrite && ['sent', 'accepted'].includes(q.status) && (
                         <Button variant="ghost" size="sm" title="View / convert" onClick={() => navigate(`/quotations/${q.id}`)}>
                           <FileText className="h-3.5 w-3.5" />
                         </Button>
@@ -209,7 +213,7 @@ export default function QuotationsPage() {
                       <Button variant="ghost" size="sm" title="PDF" onClick={() => downloadPdf(q.id, q.quotation_number)}>
                         <FileDown className="h-3.5 w-3.5" />
                       </Button>
-                      {canEdit && (
+                      {canWrite && (
                         <Button variant="ghost" size="sm" title="Share link" onClick={() => copyShare(q.id)}>
                           <Link2 className="h-3.5 w-3.5" />
                         </Button>

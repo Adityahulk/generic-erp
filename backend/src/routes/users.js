@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { z } = require('zod');
 const { validateBody } = require('../middleware/validate');
 const { verifyToken } = require('../middleware/auth');
-const { requireMinRole } = require('../middleware/role');
+const { requireMinRole, requireNotRole } = require('../middleware/role');
 const usersController = require('../controllers/usersController');
 
 const router = Router();
@@ -26,6 +26,7 @@ const updateUserSchema = z.object({
 });
 
 router.use(verifyToken);
+router.use(requireNotRole('ca'));
 
 router.post(
   '/',

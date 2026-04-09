@@ -1,9 +1,38 @@
+/**
+ * Role hierarchy for permission checks (higher number = more privilege):
+ * super_admin > company_admin > branch_manager > ca > staff
+ */
 const ROLE_HIERARCHY = {
-  super_admin: 4,
-  company_admin: 3,
-  branch_manager: 2,
+  super_admin: 5,
+  company_admin: 4,
+  branch_manager: 3,
+  ca: 2,
   staff: 1,
-  ca: 0, // CA is a lateral role — use requireRole() for explicit access
+};
+
+/** Declarative map for tooling / future checks (see CA rules in routes). */
+const ROLE_PERMISSIONS = {
+  super_admin: { all: true },
+  company_admin: { read: '*', write: '*', except_write: [] },
+  branch_manager: {
+    read: 'own_branch',
+    write: 'own_branch',
+    except_read: ['company_settings'],
+  },
+  ca: {
+    read: '*',
+    write: 'none',
+    allowed_write: ['reports_export'],
+    except_read: [
+      'users',
+      'attendance',
+      'company_settings',
+      'vehicle_create',
+      'vehicle_update',
+      'stock_transfer',
+    ],
+  },
+  staff: { read: 'own_branch', write: 'own_branch_limited' },
 };
 
 function requireRole(...allowedRoles) {
@@ -22,23 +51,27 @@ function requireRole(...allowedRoles) {
 }
 
 /**
- * Hierarchy-based check. CA role is excluded from the hierarchy
- * so they must be granted access via requireRole() explicitly.
+ * Block listed roles (e.g. read-only CA on mutating routes).
  */
+function requireNotRole(...blockedRoles) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    if (blockedRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+    next();
+  };
+}
+
 function requireMinRole(minRole) {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const userRole = req.user.role;
-
-    // CA is a lateral role — never passes hierarchy checks
-    if (userRole === 'ca') {
-      return res.status(403).json({ error: 'Insufficient permissions' });
-    }
-
-    const userLevel = ROLE_HIERARCHY[userRole] || 0;
+    const userLevel = ROLE_HIERARCHY[req.user.role] || 0;
     const requiredLevel = ROLE_HIERARCHY[minRole] || 0;
 
     if (userLevel < requiredLevel) {
@@ -49,4 +82,10 @@ function requireMinRole(minRole) {
   };
 }
 
-module.exports = { requireRole, requireMinRole, ROLE_HIERARCHY };
+module.exports = {
+  requireRole,
+  requireNotRole,
+  requireMinRole,
+  ROLE_HIERARCHY,
+  ROLE_PERMISSIONS,
+};

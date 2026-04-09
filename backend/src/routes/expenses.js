@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { z } = require('zod');
 const { validateBody } = require('../middleware/validate');
 const { verifyToken } = require('../middleware/auth');
-const { requireMinRole } = require('../middleware/role');
+const { requireMinRole, requireNotRole } = require('../middleware/role');
 const ec = require('../controllers/expensesController');
 
 const router = Router();
@@ -17,6 +17,6 @@ const createExpenseSchema = z.object({
 
 router.get('/summary', ec.expenseSummary);
 router.get('/', ec.listExpenses);
-router.post('/', requireMinRole('branch_manager'), validateBody(createExpenseSchema), ec.createExpense);
+router.post('/', requireNotRole('ca'), requireMinRole('branch_manager'), validateBody(createExpenseSchema), ec.createExpense);
 
 module.exports = router;
