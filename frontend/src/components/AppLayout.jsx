@@ -1,12 +1,77 @@
 import { useState, useRef, useEffect, createElement } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import useAuthStore from '@/store/authStore';
-import { Car, LogOut, Search, X, Loader2, Menu } from 'lucide-react';
+import { Car, LogOut, Search, X, Loader2, Menu, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
-import { navItemsForRole } from '@/config/navConfig';
+import { navItemsForRole, splitNavForDesktopBar } from '@/config/navConfig';
+
+function DesktopNavMore({ items }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const location = useLocation();
+
+  useEffect(() => {
+    setOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    function onDoc(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+
+  const overflowActive = items.some((item) => location.pathname === item.to || location.pathname.startsWith(`${item.to}/`));
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          'flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
+          open || overflowActive
+            ? 'bg-primary/10 text-primary'
+            : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+        )}
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        More
+        <ChevronDown className={cn('h-4 w-4 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div
+          className="absolute left-0 top-full mt-1 min-w-[12rem] py-1 rounded-lg border border-border bg-popover shadow-lg z-50"
+          role="menu"
+        >
+          {items.map(({ to, label, icon }) => (
+            <NavLink
+              key={`${to}-${label}`}
+              to={to}
+              onClick={() => setOpen(false)}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors',
+                  isActive ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-accent',
+                )
+              }
+            >
+              {createElement(icon, { className: 'h-4 w-4 shrink-0 opacity-70' })}
+              {label}
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function GlobalSearch() {
   const [open, setOpen] = useState(false);
@@ -248,36 +313,47 @@ export default function AppLayout({ children }) {
             <img src="/assets/mvg-logo.png" alt="MVG" className="h-8 object-contain" />
             <span className="text-lg font-bold hidden sm:inline">MVG ERP</span>
           </div>
-          <nav className="hidden md:flex items-center gap-1">
-            {navItemsForRole(user?.role).map(({ to, label, icon }) => (
-                <NavLink
-                  key={`${to}-${label}`}
-                  to={to}
-                  className={({ isActive }) =>
-                    cn(
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
-                      isActive
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-accent',
-                    )
-                  }
-                >
-                  {createElement(icon, { className: 'h-4 w-4' })}
-                  {label}
-                </NavLink>
-              ))}
+          <nav className="hidden md:flex items-center gap-0.5 flex-wrap">
+            {(() => {
+              const { primary, overflow } = splitNavForDesktopBar(user?.role);
+              return (
+                <>
+                  {primary.map(({ to, label, icon }) => (
+                    <NavLink
+                      key={`${to}-${label}`}
+                      to={to}
+                      title={label}
+                      className={({ isActive }) =>
+                        cn(
+                          'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
+                          isActive
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+                        )
+                      }
+                    >
+                      {createElement(icon, { className: 'h-4 w-4 shrink-0' })}
+                      {label}
+                    </NavLink>
+                  ))}
+                  {overflow.length > 0 ? <DesktopNavMore items={overflow} /> : null}
+                </>
+              );
+            })()}
           </nav>
         </div>
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
           {showGlobalSearch ? <GlobalSearch /> : null}
-          <span className="text-sm text-muted-foreground hidden lg:inline-flex items-center gap-2">
-            <span>{user?.name}</span>
+          <span className="text-sm text-muted-foreground hidden lg:inline-flex items-center gap-2 min-w-0 max-w-[11rem] xl:max-w-[16rem]">
+            <span className="truncate" title={user?.name}>{user?.name}</span>
             {user?.role === 'ca' && (
-              <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300/80">
+              <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300/80 shrink-0">
                 CA
               </span>
             )}
-            <span className="text-xs">({user?.role})</span>
+            <span className="text-xs text-muted-foreground/80 shrink-0 hidden xl:inline capitalize">
+              {user?.role?.replace(/_/g, ' ')}
+            </span>
           </span>
           <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={handleLogout} title="Logout">
             <LogOut className="h-4 w-4" />

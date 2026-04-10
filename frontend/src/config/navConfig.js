@@ -72,3 +72,29 @@ export function navItemsForRole(role) {
     icon: ICON_MAP[item.icon] || LayoutDashboard,
   }));
 }
+
+/** Desktop top bar: keep a short primary row; rest go under "More" (reduces clutter). */
+const DESKTOP_PRIMARY_PATHS = {
+  company_admin: ['/dashboard', '/inventory', '/sales', '/attendance'],
+  branch_manager: ['/branch-dashboard', '/inventory', '/sales', '/attendance'],
+};
+
+/**
+ * @returns {{ primary: ReturnType<navItemsForRole>, overflow: ReturnType<navItemsForRole> }}
+ */
+export function splitNavForDesktopBar(role) {
+  const items = navItemsForRole(role);
+  const key = role === 'super_admin' ? 'company_admin' : role;
+  const primaryPaths = DESKTOP_PRIMARY_PATHS[key];
+  if (!primaryPaths?.length) {
+    return { primary: items, overflow: [] };
+  }
+  const set = new Set(primaryPaths);
+  const primary = [];
+  const overflow = [];
+  for (const item of items) {
+    if (set.has(item.to)) primary.push(item);
+    else overflow.push(item);
+  }
+  return { primary, overflow };
+}
