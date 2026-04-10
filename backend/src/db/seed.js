@@ -2,6 +2,8 @@ require('dotenv').config();
 
 const bcrypt = require('bcryptjs');
 const { pool } = require('../config/db');
+const { seedDefaultLeaveTypes } = require('../services/leaveTypesService');
+const { workingDatesInRange } = require('../controllers/attendanceLeaveController');
 
 const DEMO_PASSWORD = 'Demo@1234';
 
@@ -29,7 +31,8 @@ async function seed() {
     );
     if (existingCompany.rows.length > 0) {
       const cid = existingCompany.rows[0].id;
-      await client.query(`DELETE FROM leave_requests WHERE company_id = $1`, [cid]);
+      await client.query(`DELETE FROM leave_applications WHERE company_id = $1`, [cid]);
+      await client.query(`DELETE FROM leave_types WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM attendance WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM invoice_items WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM loans WHERE company_id = $1`, [cid]);
@@ -123,9 +126,10 @@ async function seed() {
       [companyId, mapusa.id, hash],
     );
 
-    await client.query(
+    const { rows: [staff2] } = await client.query(
       `INSERT INTO users (company_id, branch_id, name, email, password_hash, phone, role)
-       VALUES ($1, $2, 'Meera Shetty', 'staff2@demo.com', $3, '9876543214', 'staff')`,
+       VALUES ($1, $2, 'Meera Shetty', 'staff2@demo.com', $3, '9876543214', 'staff')
+       RETURNING id`,
       [companyId, panaji.id, hash],
     );
 
@@ -138,6 +142,120 @@ async function seed() {
     // Assign managers to branches
     await client.query(`UPDATE branches SET manager_id = $1 WHERE id = $2`, [manager1.id, mapusa.id]);
     await client.query(`UPDATE branches SET manager_id = $1 WHERE id = $2`, [manager2.id, panaji.id]);
+
+    await seedDefaultLeaveTypes(companyId, client);
+
+    const { rows: leaveTypeRows } = await client.query(
+      `SELECT id, code FROM leave_types WHERE company_id = $1`,
+      [companyId],
+    );
+    const ltByCode = Object.fromEntries(leaveTypeRows.map((r) => [r.code, r.id]));
+
+    function rng(seed) {
+      let x = Math.abs(seed) % 2147483646;
+      if (x <= 0) x = 12345;
+      return () => {
+        x = (x * 16807) % 2147483647;
+        return (x - 1) / 2147483646;
+      };
+    }
+
+    function ymdAddDays(baseStr, delta) {
+      const d = new Date(`${baseStr}T12:00:00.000Z`);
+      d.setUTCDate(d.getUTCDate() + delta);
+      return d.toISOString().slice(0, 10);
+    }
+
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    const attendanceUsers = [
+      { id: adminUser.id, branchId: mapusa.id },
+      { id: manager1.id, branchId: mapusa.id },
+      { id: manager2.id, branchId: panaji.id },
+      { id: staff1.id, branchId: mapusa.id },
+      { id: staff2.id, branchId: panaji.id },
+    ];
+
+    for (let back = 29; back >= 0; back -= 1) {
+      const dateStr = ymdAddDays(todayUtc, -back);
+      const dow = new Date(`${dateStr}T12:00:00.000Z`).getUTCDay();
+      if (dow === 0) continue;
+
+      for (let ui = 0; ui < attendanceUsers.length; ui += 1) {
+        const u = attendanceUsers[ui];
+        const r = rng(u.id.charCodeAt(0) + back + ui * 17)();
+        if (r < 0.8) {
+          const r2 = rng(u.id.charCodeAt(1) + back)();
+          const inMin = Math.floor(r2 * 46);
+          const outMin = Math.floor(rng(back + 3)() * 46);
+          const clockIn = `${dateStr}T${String(9 + Math.floor(inMin / 60)).padStart(2, '0')}:${String(inMin % 60).padStart(2, '0')}:00+05:30`;
+          const clockOut = `${dateStr}T${String(18 + Math.floor(outMin / 60)).padStart(2, '0')}:${String(outMin % 60).padStart(2, '0')}:00+05:30`;
+          await client.query(
+            `INSERT INTO attendance (company_id, branch_id, user_id, date, clock_in, clock_out, status)
+             VALUES ($1, $2, $3, $4::date, $5::timestamptz, $6::timestamptz, NULL)
+             ON CONFLICT (user_id, date) WHERE is_deleted = FALSE DO NOTHING`,
+            [companyId, u.branchId, u.id, dateStr, clockIn, clockOut],
+          );
+        } else if (r < 0.95) {
+          /* absent — no row */
+        } else {
+          await client.query(
+            `INSERT INTO attendance (company_id, branch_id, user_id, date, clock_in, clock_out, status)
+             VALUES ($1, $2, $3, $4::date, NULL, NULL, 'on_leave')
+             ON CONFLICT (user_id, date) WHERE is_deleted = FALSE
+             DO UPDATE SET status = 'on_leave', clock_in = NULL, clock_out = NULL, updated_at = NOW()`,
+            [companyId, u.branchId, u.id, dateStr],
+          );
+        }
+      }
+    }
+
+    const clFrom = ymdAddDays(todayUtc, -10);
+    const clTo = ymdAddDays(todayUtc, -8);
+    const clDays = workingDatesInRange(clFrom, clTo).length;
+    await client.query(
+      `INSERT INTO leave_applications
+         (company_id, branch_id, user_id, leave_type_id, from_date, to_date, total_days, half_day, reason, status,
+          reviewed_by, reviewed_at)
+       VALUES ($1, $2, $3, $4, $5::date, $6::date, $7, FALSE, 'Family function', 'approved', $8, NOW())`,
+      [companyId, mapusa.id, staff1.id, ltByCode.CL, clFrom, clTo, clDays, adminUser.id],
+    );
+
+    const slFrom = ymdAddDays(todayUtc, 5);
+    const slTo = ymdAddDays(todayUtc, 7);
+    const slDays = workingDatesInRange(slFrom, slTo).length;
+    await client.query(
+      `INSERT INTO leave_applications
+         (company_id, branch_id, user_id, leave_type_id, from_date, to_date, total_days, half_day, reason, status)
+       VALUES ($1, $2, $3, $4, $5::date, $6::date, $7, FALSE, 'Medical check-up', 'pending')`,
+      [companyId, mapusa.id, staff1.id, ltByCode.SL, slFrom, slTo, slDays],
+    );
+
+    const mClFrom = ymdAddDays(todayUtc, -17);
+    const mClTo = ymdAddDays(todayUtc, -15);
+    const mClDays = workingDatesInRange(mClFrom, mClTo).length;
+    await client.query(
+      `INSERT INTO leave_applications
+         (company_id, branch_id, user_id, leave_type_id, from_date, to_date, total_days, half_day, reason, status,
+          reviewed_by, reviewed_at)
+       VALUES ($1, $2, $3, $4, $5::date, $6::date, $7, FALSE, 'Personal work', 'approved', $8, NOW())`,
+      [companyId, mapusa.id, manager1.id, ltByCode.CL, mClFrom, mClTo, mClDays, adminUser.id],
+    );
+
+    async function applyApprovedLeaveToAttendance(userId, branchId, fromStr, toStr) {
+      const dates = workingDatesInRange(fromStr, toStr);
+      for (const ds of dates) {
+        await client.query(
+          `INSERT INTO attendance (company_id, branch_id, user_id, date, clock_in, clock_out, status)
+           VALUES ($1, $2, $3, $4::date, NULL, NULL, 'on_leave')
+           ON CONFLICT (user_id, date) WHERE is_deleted = FALSE
+           DO UPDATE SET status = 'on_leave', clock_in = NULL, clock_out = NULL, updated_at = NOW()`,
+          [companyId, branchId, userId, ds],
+        );
+      }
+    }
+
+    await applyApprovedLeaveToAttendance(staff1.id, mapusa.id, clFrom, clTo);
+    await applyApprovedLeaveToAttendance(manager1.id, mapusa.id, mClFrom, mClTo);
 
     // ── 4. Vehicles ───────────────────────────────────────
     const vehicleIds = [];

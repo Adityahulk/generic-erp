@@ -27,7 +27,8 @@ export default function LoginPage() {
       login(data);
       const role = data.user?.role;
       if (role === 'ca') navigate('/ca/dashboard');
-      else if (role === 'staff') navigate('/attendance');
+      else if (role === 'staff') navigate('/my-attendance');
+      else if (role === 'branch_manager') navigate('/branch-dashboard');
       else navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed. Please try again.');

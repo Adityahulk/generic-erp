@@ -33,9 +33,10 @@ export const NAV_CONFIG = {
     { label: 'Settings', path: '/settings', icon: 'Settings' },
   ],
   branch_manager: [
-    { label: 'Dashboard', path: '/dashboard', icon: 'LayoutDashboard' },
+    { label: 'Branch Dashboard', path: '/branch-dashboard', icon: 'LayoutDashboard' },
     { label: 'Inventory', path: '/inventory', icon: 'Car' },
     { label: 'Sales', path: '/sales', icon: 'ShoppingCart' },
+    { label: 'Purchases', path: '/purchases', icon: 'PackagePlus' },
     { label: 'Quotations', path: '/quotations', icon: 'FileText' },
     { label: 'Loans', path: '/loans', icon: 'Landmark' },
     { label: 'Expenses', path: '/expenses', icon: 'Receipt' },
@@ -51,11 +52,7 @@ export const NAV_CONFIG = {
     { label: 'Reports & Filing', path: '/reports', icon: 'BarChart2' },
   ],
   staff: [
-    { label: 'Dashboard', path: '/dashboard', icon: 'LayoutDashboard' },
-    { label: 'Inventory', path: '/inventory', icon: 'Car' },
-    { label: 'Sales', path: '/sales', icon: 'ShoppingCart' },
-    { label: 'Quotations', path: '/quotations', icon: 'FileText' },
-    { label: 'Attendance', path: '/attendance', icon: 'Clock' },
+    { label: 'Attendance', path: '/my-attendance', icon: 'Clock' },
   ],
 };
 
