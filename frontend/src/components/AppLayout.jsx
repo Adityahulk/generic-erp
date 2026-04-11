@@ -299,44 +299,53 @@ export default function AppLayout({ children }) {
 
   return (
     <div className="min-h-screen bg-muted">
-      <header className="sticky top-0 z-30 bg-card border-b border-border px-4 sm:px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-4 sm:gap-6">
+      <header className="sticky top-0 z-30 bg-card border-b border-border px-4 sm:px-6 py-3 flex items-center justify-between gap-3 min-w-0">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden -ml-1"
+            className="md:hidden -ml-1 shrink-0"
             onClick={() => setMobileOpen(true)}
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <img src="/assets/mvg-logo.png" alt="MVG" className="h-8 object-contain" />
             <span className="text-lg font-bold hidden sm:inline">MVG ERP</span>
           </div>
-          <nav className="hidden md:flex items-center gap-0.5 flex-wrap">
+          <nav
+            className="hidden md:flex items-center gap-1 min-w-0 flex-1"
+            aria-label="Main navigation"
+          >
             {(() => {
               const { primary, overflow } = splitNavForDesktopBar(user?.role);
               return (
                 <>
-                  {primary.map(({ to, label, icon }) => (
-                    <NavLink
-                      key={`${to}-${label}`}
-                      to={to}
-                      title={label}
-                      className={({ isActive }) =>
-                        cn(
-                          'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap',
-                          isActive
-                            ? 'bg-primary/10 text-primary'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-accent',
-                        )
-                      }
-                    >
-                      {createElement(icon, { className: 'h-4 w-4 shrink-0' })}
-                      {label}
-                    </NavLink>
-                  ))}
-                  {overflow.length > 0 ? <DesktopNavMore items={overflow} /> : null}
+                  <div className="flex items-center gap-0.5 flex-nowrap min-w-0 flex-1 overflow-x-auto overflow-y-visible py-1 -my-1 [scrollbar-width:thin]">
+                    {primary.map(({ to, label, icon }) => (
+                      <NavLink
+                        key={`${to}-${label}`}
+                        to={to}
+                        title={label}
+                        className={({ isActive }) =>
+                          cn(
+                            'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap shrink-0',
+                            isActive
+                              ? 'bg-primary/10 text-primary'
+                              : 'text-muted-foreground hover:text-foreground hover:bg-accent',
+                          )
+                        }
+                      >
+                        {createElement(icon, { className: 'h-4 w-4 shrink-0' })}
+                        {label}
+                      </NavLink>
+                    ))}
+                  </div>
+                  {overflow.length > 0 ? (
+                    <div className="shrink-0 border-l border-border/60 pl-1 ml-0.5">
+                      <DesktopNavMore items={overflow} />
+                    </div>
+                  ) : null}
                 </>
               );
             })()}
