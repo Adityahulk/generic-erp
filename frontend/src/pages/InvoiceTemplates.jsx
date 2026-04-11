@@ -15,7 +15,7 @@ import useAuthStore from '@/store/authStore';
 import { apiPath } from '@/lib/apiPrefix';
 import { toast } from 'sonner';
 import {
-  Loader2, Star, Pencil, Eye, Plus,
+  Loader2, Star, Pencil, Eye,
 } from 'lucide-react';
 
 const DEFAULT_LAYOUT = {
@@ -220,19 +220,11 @@ export default function InvoiceTemplates() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h3 className="text-lg font-semibold">Invoice templates</h3>
-          <p className="text-sm text-muted-foreground">
-            Choose a default layout, upload branding, and customize what appears on PDF invoices.
-          </p>
-        </div>
-        <span title="Coming soon" className="inline-flex">
-          <Button type="button" variant="outline" disabled className="pointer-events-none">
-            <Plus className="h-4 w-4 mr-2" />
-            Create custom template
-          </Button>
-        </span>
+      <div>
+        <h3 className="text-lg font-semibold">Invoice templates</h3>
+        <p className="text-sm text-muted-foreground">
+          Choose a default layout, upload branding, and customize what appears on PDF invoices.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
