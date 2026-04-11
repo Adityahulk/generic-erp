@@ -1,6 +1,10 @@
 networks:
   erp:
     driver: bridge
+    ipam:
+      config:
+        # Static IPs for api/frontend — nginx upstreams use these (no stale Docker DNS after recreate)
+        - subnet: 172.29.44.0/24
 
 services:
 
@@ -39,7 +43,9 @@ services:
     build: ./backend
     container_name: vehicle_erp_api
     restart: unless-stopped
-    networks: [erp]
+    networks:
+      erp:
+        ipv4_address: 172.29.44.11
     depends_on:
       postgres:
         condition: service_healthy
@@ -48,6 +54,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4000
+      # Must accept connections from nginx container — do not override with 127.0.0.1 in .env
+      LISTEN_HOST: 0.0.0.0
       DATABASE_URL: postgresql://${DB_USER:-erp_user}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-vehicle_erp}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
@@ -96,7 +104,9 @@ services:
     build: ./frontend
     container_name: vehicle_erp_frontend
     restart: unless-stopped
-    networks: [erp]
+    networks:
+      erp:
+        ipv4_address: 172.29.44.12
 
   nginx:
     image: nginx:alpine
