@@ -27,14 +27,6 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 // --------------- Rate Limiters ---------------
 // No custom keyGenerator — express-rate-limit v7+ defaults are IPv6-safe with app.set('trust proxy', …).
 // A custom (req) => req.ip triggers ERR_ERL_KEY_GEN_IPV6 validation even when “fixed” on some builds.
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, error: 'Too many login attempts. Try again in 15 minutes.' },
-});
-
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 100,
@@ -55,7 +47,6 @@ app.get('/api/health', async (_req, res) => {
 
 // --------------- API Routes ---------------
 app.use('/api', apiLimiter);
-app.use('/api/auth/login', loginLimiter);
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
