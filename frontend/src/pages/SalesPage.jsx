@@ -571,7 +571,7 @@ export default function SalesPage() {
               <TableHead>Customer</TableHead>
               <TableHead>Vehicle</TableHead>
               <TableHead>Status</TableHead>
-              {eInvoiceStatus?.enabled && <TableHead>e-Invoice</TableHead>}
+              <TableHead>e-Invoice</TableHead>
               <TableHead className="text-right">Total</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -579,13 +579,13 @@ export default function SalesPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={eInvoiceStatus?.enabled ? 8 : 7} className="text-center py-12">
+                <TableCell colSpan={8} className="text-center py-12">
                   <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                 </TableCell>
               </TableRow>
             ) : invoices.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={eInvoiceStatus?.enabled ? 8 : 7} className="text-center py-12 text-muted-foreground">No invoices found</TableCell>
+                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">No invoices found</TableCell>
               </TableRow>
             ) : (
               invoices.map((inv) => (
@@ -604,26 +604,24 @@ export default function SalesPage() {
                   <TableCell>
                     <Badge variant={INV_STATUS_BADGE[inv.status]}>{inv.status}</Badge>
                   </TableCell>
-                  {eInvoiceStatus?.enabled && (
-                    <TableCell>
-                      {inv.irn_status === 'generated' && (
-                        <Badge variant="success" className="gap-1">
-                          <ShieldCheck className="h-3 w-3" /> IRN
-                        </Badge>
-                      )}
-                      {inv.irn_status === 'cancelled' && (
-                        <Badge variant="destructive" className="gap-1 text-[10px]">
-                          <ShieldX className="h-3 w-3" /> Cancelled
-                        </Badge>
-                      )}
-                      {inv.irn_status === 'failed' && (
-                        <Badge variant="destructive" className="text-[10px]">Failed</Badge>
-                      )}
-                      {(!inv.irn_status || inv.irn_status === 'pending') && inv.status === 'confirmed' && (
-                        <span className="text-xs text-muted-foreground">Pending</span>
-                      )}
-                    </TableCell>
-                  )}
+                  <TableCell>
+                    {inv.irn_status === 'generated' && (
+                      <Badge variant="success" className="gap-1">
+                        <ShieldCheck className="h-3 w-3" /> IRN
+                      </Badge>
+                    )}
+                    {inv.irn_status === 'cancelled' && (
+                      <Badge variant="destructive" className="gap-1 text-[10px]">
+                        <ShieldX className="h-3 w-3" /> Cancelled
+                      </Badge>
+                    )}
+                    {inv.irn_status === 'failed' && (
+                      <Badge variant="destructive" className="text-[10px]">Failed</Badge>
+                    )}
+                    {(!inv.irn_status || inv.irn_status === 'pending') && inv.status === 'confirmed' && (
+                      <span className="text-xs text-muted-foreground">Pending</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right font-mono">{formatCurrency(inv.total)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex flex-wrap items-center justify-end gap-1 max-w-[220px] ml-auto">
@@ -671,18 +669,42 @@ export default function SalesPage() {
                           )}
                         </>
                       )}
-                      {eInvoiceStatus?.enabled && inv.status === 'confirmed' && (!inv.irn_status || inv.irn_status === 'pending' || inv.irn_status === 'failed') && canWrite && (
+                      {inv.status === 'confirmed' && (!inv.irn_status || inv.irn_status === 'pending' || inv.irn_status === 'failed') && canWrite && (
                         <Button variant="ghost" size="sm" title="Generate e-Invoice (IRN)"
                           onClick={() => { if (window.confirm('Generate e-Invoice for this invoice?')) generateEInvoiceMutation.mutate(inv.id); }}
                           disabled={generateEInvoiceMutation.isPending}>
                           <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
                         </Button>
                       )}
-                      {eInvoiceStatus?.enabled && inv.irn_status === 'generated' && canWrite && (
+                      {inv.irn_status === 'generated' && canWrite && (
                         <Button variant="ghost" size="sm" title="Cancel e-Invoice IRN"
                           onClick={() => { if (window.confirm('Cancel the e-Invoice IRN? This is only possible within 24 hours.')) cancelEInvoiceMutation.mutate(inv.id); }}
                           disabled={cancelEInvoiceMutation.isPending}>
                           <ShieldX className="h-3.5 w-3.5 text-amber-600" />
+                        </Button>
+                      )}
+                      {/* E-WAY BILL BUTTONS */}
+                      {inv.irn_status === 'generated' && (!inv.eway_bill_status || inv.eway_bill_status !== 'generated') && canWrite && (
+                        <Button variant="ghost" size="sm" title="Generate E-Way Bill"
+                          onClick={() => { 
+                            const distance = window.prompt("Enter Distance (km):", "100");
+                            if (!distance) return;
+                            const vehNo = window.prompt("Enter Vehicle Number (e.g. MH12AB1234):", "");
+                            if (!vehNo) return;
+                            const transId = window.prompt("Enter Transporter ID (GSTIN):", "27AAAAA0000A1Z5");
+                            if (!transId) return;
+
+                            api.post(`/invoices/${inv.id}/ewaybill/generate`, {
+                              distance_km: parseInt(distance),
+                              vehicle_no: vehNo,
+                              transporter_id: transId,
+                              transport_mode: "1"
+                            }).then(() => {
+                              queryClient.invalidateQueries({ queryKey: ['invoices'] });
+                              toast.success('E-Way Bill Generated Successfully!');
+                            }).catch(err => toast.error(err.response?.data?.error || 'E-Way bill generation failed'));
+                          }}>
+                          <ShieldCheck className="h-3.5 w-3.5 text-blue-600" /> EWB
                         </Button>
                       )}
                       {inv.status === 'draft' && canWrite && (
