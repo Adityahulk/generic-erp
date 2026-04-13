@@ -2,8 +2,7 @@ const { Router } = require('express');
 const jwt = require('jsonwebtoken');
 const ic = require('../controllers/invoicesController');
 const { loadQuotationBundle, buildQuotationHtml } = require('../controllers/quotationsController');
-const { generateInvoiceHtmlForPreview, generateInvoicePdf } = require('../services/pdfService');
-const { htmlToPdfBuffer } = require('../services/htmlToPdf');
+const { generateInvoiceHtmlForPreview, generateInvoicePdf, htmlToPdfBuffer } = require('../services/pdfService');
 const { shareSecret } = require('../services/whatsappService');
 
 const router = Router();
