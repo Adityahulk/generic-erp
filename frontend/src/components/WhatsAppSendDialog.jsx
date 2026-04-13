@@ -75,7 +75,12 @@ export default function WhatsAppSendDialog({
       const ph = phoneTouched ? phoneDigits : derivedPhone;
       return api.post(url, { ...body, phone: ph ? `+91${ph}` : undefined });
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
+      const data = res?.data;
+      if (data?.success === false) {
+        toast.error(data.error || 'Send failed — check WhatsApp template is configured');
+        return;
+      }
       toast.success('WhatsApp sent');
       setJustSent(true);
       if (kind === 'invoice') {
