@@ -70,6 +70,7 @@ services:
       JWT_ACCESS_EXPIRY: ${JWT_ACCESS_EXPIRY:-15m}
       JWT_REFRESH_EXPIRY: ${JWT_REFRESH_EXPIRY:-7d}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://64.227.140.244}
       UPLOAD_DIR: ./uploads
       MAX_FILE_SIZE: ${MAX_FILE_SIZE:-5242880}
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
