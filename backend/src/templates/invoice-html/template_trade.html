@@ -4,125 +4,207 @@
 <meta charset="utf-8"/>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: __FONT_FAMILY__; color:#111; font-size:10px; padding:14px 18px; }
-  .page-top { position:relative; margin-bottom:8px; min-height:14px; }
-  .ribbon { position:absolute; right:0; top:0; font-weight:700; font-size:10px; letter-spacing:0.04em; color:#333; }
-  .header-grid { display:grid; grid-template-columns:100px 1fr; gap:12px; align-items:start; margin-bottom:10px; }
-  .header-grid .logo-cell img { max-height:72px; max-width:100px; display:block; object-fit:contain; }
-  .seller-name { font-size:13px; font-weight:700; color:#111; text-transform:uppercase; line-height:1.25; }
-  .seller-meta { margin-top:4px; line-height:1.45; font-size:9px; }
-  .top-band { background:__PRIMARY_COLOR__; color:#fff; padding:6px 10px; font-weight:700; font-size:11px; text-align:center; margin:8px 0 10px; letter-spacing:0.06em; }
-  .meta-dual { display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid #64748b; margin-bottom:8px; font-size:9px; }
-  .meta-dual .col { border-right:1px solid #64748b; padding:6px 8px; }
-  .meta-dual .col:last-child { border-right:none; }
-  .meta-dual .row { display:flex; margin-bottom:3px; }
-  .meta-dual .lbl { font-weight:600; min-width:88px; color:#334155; }
-  .logistics { display:flex; flex-wrap:wrap; gap:12px 24px; border:1px solid #64748b; padding:6px 8px; margin-bottom:10px; font-size:9px; background:#f8fafc; }
-  .logistics span { white-space:nowrap; }
-  .party-row { display:flex; gap:10px; margin:10px 0; align-items:stretch; }
-  .party { flex:1; border:1px solid #64748b; padding:8px; background:#fafafa; }
-  .party h4 { font-size:8px; text-transform:uppercase; color:#64748b; margin-bottom:6px; letter-spacing:0.05em; }
-  table.items { width:100%; border-collapse:collapse; margin:10px 0; font-size:8.5px; }
-  table.items th, table.items td { border:1px solid #64748b; padding:3px 2px; vertical-align:middle; }
-  table.items th { background:#e2e8f0; font-weight:600; text-align:center; line-height:1.2; }
-  table.items .num { text-align:right; font-variant-numeric:tabular-nums; }
-  table.items .center { text-align:center; }
-  .totals-wrap { display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; align-items:flex-start; margin:10px 0; }
-  .tax-mini { border-collapse:collapse; font-size:8.5px; }
-  .tax-mini th, .tax-mini td { border:1px solid #64748b; padding:3px 5px; }
-  .tax-mini th { background:#e2e8f0; }
-  .tax-mini .num { text-align:right; }
-  .totals-stack { min-width:200px; font-size:9px; border:1px solid #64748b; padding:6px 8px; background:#fff; }
-  .totals-stack .r { display:flex; justify-content:space-between; padding:2px 0; border-bottom:1px solid #e2e8f0; }
-  .totals-stack .r:last-child { border-bottom:none; font-weight:700; font-size:10px; padding-top:6px; margin-top:4px; border-top:2px solid __PRIMARY_COLOR__; }
-  .words { margin:10px 0; padding:8px; border:1px solid #cbd5e1; background:#f8fafc; font-size:9px; font-weight:600; }
-  .footer-sign { display:flex; justify-content:space-between; gap:16px; margin-top:14px; padding-top:12px; border-top:2px solid __PRIMARY_COLOR__; align-items:flex-end; }
-  .receiver-box { flex:1; min-height:72px; border:1px dashed #94a3b8; padding:8px; font-size:9px; text-align:center; }
-  .sign-area { flex:1; max-width:260px; text-align:center; border:1px dashed #94a3b8; padding:8px; }
-  .sign-area img { max-height:56px; max-width:100%; margin:4px auto; display:block; }
-  .terms-bank { font-size:9px; line-height:1.4; color:#333; margin-top:10px; }
-  .bank-cols { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:6px; }
-  .page-foot { text-align:right; font-size:8px; color:#64748b; margin-top:10px; }
-  .loan-box { margin:8px 0; padding:6px; background:#fffbeb; border:1px solid #fcd34d; font-size:9px; }
+  body {
+    font-family: 'Times New Roman', Times, serif;
+    color:#000;
+    font-size:10px;
+    padding:10px 12px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .inv { width:100%; border-collapse:collapse; table-layout:fixed; }
+  .inv td, .inv th { border:1px solid #000; vertical-align:top; }
+  .b0 { border:1px solid #000; }
+  .header-ribbon { font-size:9px; font-weight:700; text-align:right; padding:4px 6px; vertical-align:top; width:14%; }
+  .logo-cell {
+    width:118px; min-width:118px; background:#000; text-align:center; vertical-align:middle;
+    padding:6px 4px;
+  }
+  .logo-cell img { max-height:78px; max-width:110px; display:block; margin:0 auto; object-fit:contain; }
+  .co-block { text-align:center; padding:8px 10px 10px; }
+  .co-name { font-size:13px; font-weight:700; text-transform:uppercase; line-height:1.2; margin-bottom:6px; }
+  .co-addr { font-size:9px; line-height:1.35; margin-bottom:6px; }
+  .co-line { font-size:9px; line-height:1.4; }
+  .title-row td {
+    background:__PRIMARY_COLOR__;
+    color:#fff;
+    text-align:center;
+    font-weight:700;
+    font-size:12px;
+    letter-spacing:0.12em;
+    padding:7px 8px;
+  }
+  .meta-outer { width:100%; border-collapse:collapse; }
+  .meta-outer > tbody > tr > td { width:50%; padding:0; vertical-align:top; }
+  .meta-inner { width:100%; border-collapse:collapse; }
+  .meta-inner td { border:none; border-bottom:1px solid #000; padding:4px 8px; font-size:9px; }
+  .meta-inner tr:last-child td { border-bottom:none; }
+  .meta-inner .k { font-weight:700; width:42%; padding-right:6px; }
+  .party-outer { width:100%; border-collapse:collapse; margin-top:0; }
+  .party-outer > tbody > tr > td { width:50%; padding:0; vertical-align:top; }
+  .party-box { border:1px solid #000; min-height:120px; padding:6px 8px; }
+  .party-box h4 { font-size:8px; font-weight:700; text-transform:uppercase; margin-bottom:6px; letter-spacing:0.04em; }
+  .party-box p { font-size:9px; line-height:1.35; margin-bottom:3px; }
+  .log-table { width:100%; border-collapse:collapse; margin-top:0; }
+  .log-table td { border:1px solid #000; padding:5px 8px; font-size:9px; }
+  .log-table .k { font-weight:700; white-space:nowrap; padding-right:10px; }
+  table.items { width:100%; border-collapse:collapse; margin:0; font-size:8.5px; }
+  table.items th, table.items td { border:1px solid #000; padding:3px 4px; vertical-align:middle; }
+  table.items th { font-weight:700; text-align:center; background:#f0f0f0; }
+  table.items .r { text-align:right; font-variant-numeric:tabular-nums; }
+  table.items .c { text-align:center; }
+  .tot-outer { width:100%; border-collapse:collapse; margin:0; }
+  .tot-outer > tbody > tr > td { width:50%; vertical-align:top; padding:0; border:1px solid #000; }
+  .tot-left-pad { padding:6px 8px; }
+  .tax-mini { width:100%; border-collapse:collapse; font-size:8.5px; margin-top:4px; }
+  .tax-mini th, .tax-mini td { border:1px solid #000; padding:3px 5px; }
+  .tax-mini th { background:#f0f0f0; font-weight:700; }
+  .tax-mini .r { text-align:right; }
+  .qty-note { font-size:9px; margin-bottom:6px; font-weight:700; }
+  .tot-stack { font-size:9px; padding:6px 8px; }
+  .tot-stack .r { display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid #ccc; }
+  .tot-stack .r:last-child {
+    border-bottom:2px solid #000; border-top:2px solid #000;
+    font-weight:700; font-size:10px; margin-top:4px; padding-top:6px;
+  }
+  .words-bar {
+    border:1px solid #000;
+    padding:8px 10px;
+    text-align:center;
+    font-weight:700;
+    font-size:10px;
+    margin:0;
+    text-transform:uppercase;
+  }
+  .bank-outer { width:100%; border-collapse:collapse; margin:0; }
+  .bank-outer > tbody > tr > td { width:50%; border:1px solid #000; padding:8px; vertical-align:top; font-size:9px; line-height:1.45; white-space:pre-wrap; }
+  .bank-title { font-weight:700; margin-bottom:6px; font-size:9px; }
+  .foot-grid { width:100%; border-collapse:collapse; margin:0; }
+  .foot-grid > tbody > tr > td { vertical-align:top; padding:0; }
+  .terms-box { border:1px solid #000; padding:8px; min-height:100px; font-size:9px; line-height:1.45; margin:0; }
+  .terms-box strong { display:block; margin-bottom:6px; }
+  .sign-outer { width:100%; border-collapse:collapse; }
+  .sign-outer > tbody > tr > td { width:50%; border:1px solid #000; padding:10px 8px; vertical-align:bottom; min-height:110px; }
+  .recv-label { font-size:9px; font-weight:700; text-align:center; padding-top:40px; }
+  .for-co { font-size:9px; text-align:left; margin-bottom:6px; }
+  .for-co strong { font-weight:700; }
+  .sign-img-wrap { text-align:center; min-height:52px; }
+  .sign-img-wrap img { max-height:64px; max-width:92%; display:block; margin:4px auto; }
+  .auth-line { font-size:9px; font-weight:700; text-align:center; border-top:1px solid #000; margin-top:8px; padding-top:6px; }
+  .einv-box { border:1px solid #000; padding:8px; margin:0 0 8px; font-size:9px; }
+  .loan-box { margin:0 0 8px; padding:6px 8px; border:1px solid #000; background:#fafafa; font-size:9px; }
+  .page-foot { text-align:right; font-size:9px; margin-top:8px; padding-right:4px; }
 </style>
 </head>
 <body>
-<div class="page-top">
-  <span class="ribbon">__ORIGINAL_LABEL__</span>
-</div>
 
-<div class="header-grid">
-  <div class="logo-cell">__LOGO_BLOCK__</div>
-  <div>
-    <div class="seller-name">__COMPANY_NAME__</div>
-    <div class="seller-meta">
-      __COMPANY_ADDRESS__<br/>
-      <strong>GSTIN:</strong> __COMPANY_GSTIN__ &nbsp;|&nbsp; <strong>State:</strong> __COMPANY_STATE_NAME__ [__COMPANY_STATE_CODE__]<br/>
-      <strong>Phone:</strong> __COMPANY_PHONE__ &nbsp;|&nbsp; <strong>Email:</strong> __COMPANY_EMAIL__
-    </div>
-  </div>
-</div>
+<table class="inv" style="margin-bottom:0;">
+  <tr>
+    <td class="logo-cell">__LOGO_BLOCK__</td>
+    <td class="co-block">
+      <div class="co-name">__COMPANY_NAME__</div>
+      <div class="co-addr">__COMPANY_ADDRESS__</div>
+      <div class="co-line"><strong>GSTIN:</strong> __COMPANY_GSTIN__</div>
+      <div class="co-line"><strong>State:</strong> __COMPANY_STATE_NAME__ [__COMPANY_STATE_CODE__]</div>
+      <div class="co-line"><strong>Phone No:</strong> __COMPANY_PHONE____COMPANY_EMAIL_SUFFIX__</div>
+    </td>
+    <td class="header-ribbon">__ORIGINAL_LABEL__</td>
+  </tr>
+  <tr class="title-row">
+    <td colspan="3">TAX INVOICE</td>
+  </tr>
+</table>
 
-<div class="top-band">TAX INVOICE</div>
+<table class="meta-outer" style="width:100%; border:1px solid #000; border-top:0; border-collapse:collapse;">
+  <tr>
+    <td style="width:50%; border-right:1px solid #000; vertical-align:top;">
+      <table class="meta-inner">__META_LEFT__</table>
+    </td>
+    <td style="width:50%; vertical-align:top;">
+      <table class="meta-inner">__META_RIGHT__</table>
+    </td>
+  </tr>
+</table>
 
-<div class="meta-dual">
-  <div class="col">__META_LEFT__</div>
-  <div class="col">__META_RIGHT__</div>
-</div>
+<table style="width:100%; border-collapse:collapse; border:1px solid #000; border-top:0;">
+  <tr>
+    <td style="width:50%; border-right:1px solid #000; vertical-align:top; padding:6px 8px;">
+      <h4 style="font-size:8px;font-weight:700;text-transform:uppercase;margin-bottom:6px;letter-spacing:0.04em;">Billing Details (Bill To)</h4>
+      <p><strong>__CUSTOMER_NAME__</strong></p>
+      <p>__CUSTOMER_ADDRESS__</p>
+      <p><strong>POS:</strong> __POS_STATE_NAME__</p>
+      <p><strong>State Code:</strong> __POS_STATE_CODE__</p>
+      <p>__CUSTOMER_PHONE__</p>
+      <p>__CUSTOMER_GSTIN_LINE__</p>
+    </td>
+    <td style="width:50%; vertical-align:top; padding:6px 8px;">
+      <h4 style="font-size:8px;font-weight:700;text-transform:uppercase;margin-bottom:6px;letter-spacing:0.04em;">Shipping Details (Ship To)</h4>
+      __SHIP_TO_BLOCK__
+    </td>
+  </tr>
+</table>
 
-<div class="logistics">__LOGISTICS_ROW__</div>
-
-<div class="party-row">
-  <div class="party">
-    <h4>Billing details (Bill To)</h4>
-    <p><strong>__CUSTOMER_NAME__</strong></p>
-    <p>__CUSTOMER_ADDRESS__</p>
-    <p>__CUSTOMER_PHONE__</p>
-    <p>__CUSTOMER_GSTIN_LINE__</p>
-    <p><strong>POS:</strong> __POS_STATE_NAME__</p>
-    <p><strong>State Code:</strong> __POS_STATE_CODE__</p>
-  </div>
-  <div class="party">
-    <h4>Shipping details (Ship To)</h4>
-    __SHIP_TO_BLOCK__
-  </div>
-</div>
+<table class="log-table" style="border-top:0;">
+  <tr>
+    <td style="width:34%;"><span class="k">E-Way No:</span> __EWAY__</td>
+    <td style="width:33%;"><span class="k">Vehicle No:</span> __VEHICLE_NO__</td>
+    <td style="width:33%;"><span class="k">Destination:</span> __DESTINATION__</td>
+  </tr>
+</table>
 
 __LOAN_BLOCK__
 
-<table class="items">
-  <thead>__ITEMS_HEAD__</thead>
-  <tbody>__ITEMS_BODY__</tbody>
+<table class="inv" style="margin-top:0;">
+  <tr><td style="padding:0; border:1px solid #000;">
+    <table class="items">
+      <thead>__ITEMS_HEAD__</thead>
+      <tbody>__ITEMS_BODY__</tbody>
+    </table>
+  </td></tr>
 </table>
 
-<div class="totals-wrap">
-  __TOTALS_LEFT__
-  __TOTALS_RIGHT__
-</div>
+<table class="tot-outer" style="width:100%;border-collapse:collapse;margin:0;border:1px solid #000;border-top:0;">
+  <tr>
+    <td>
+      <div class="tot-left-pad">__TOTALS_LEFT__</div>
+    </td>
+    <td>
+      __TOTALS_RIGHT__
+    </td>
+  </tr>
+</table>
 
-<div class="words">Amount in words: __AMOUNT_WORDS__</div>
+<div class="words-bar">__AMOUNT_WORDS__</div>
 
 __EINVOICE_BLOCK__
 
-<div class="terms-bank">
-  __TERMS_BLOCK__
-  __BANK_BLOCK__
-  <p style="margin-top:8px;font-size:9px;font-weight:600;">__FOOTER_TEXT__</p>
-</div>
+<div class="bank-title" style="border:1px solid #000; border-bottom:0; padding:6px 8px; margin:0; font-weight:700;">Bank Details</div>
+<table class="bank-outer">
+  <tr>
+    <td>__BANK_COL_LEFT__</td>
+    <td>__BANK_COL_RIGHT__</td>
+  </tr>
+</table>
 
-<div class="footer-sign">
-  <div class="receiver-box">
-    <strong>Receiver's signature &amp; seal</strong>
-  </div>
-  <div class="sign-area">
-    <div style="font-size:9px;text-align:left;margin-bottom:4px;">For <strong>__COMPANY_NAME__</strong></div>
-    __SIGNATURE_IMG__
-    <div style="font-size:9px;font-weight:600;margin-top:6px;border-top:1px solid #111;padding-top:4px;">__SIGNATORY_TITLE__</div>
-  </div>
-</div>
+<div class="terms-box" style="margin:0; border-top:0;">__TERMS_BLOCK__</div>
+
+<table class="sign-outer" style="width:100%;border-collapse:collapse;margin:0;border:1px solid #000;border-top:0;">
+  <tr>
+    <td style="width:50%;">
+      <div class="recv-label">Receiver's Signature and Seal</div>
+    </td>
+    <td style="width:50%;">
+      <div class="for-co">For <strong>__COMPANY_NAME__</strong></div>
+      <div class="sign-img-wrap">__SIGNATURE_IMG__</div>
+      <div class="auth-line">__SIGNATORY_TITLE__</div>
+    </td>
+  </tr>
+</table>
 
 __QR_BLOCK__
 
-<div class="page-foot">Page 1 of 1 · This is a computer-generated invoice. __COMPUTER_GEN_NOTE__</div>
+<p class="page-foot">Page 1 Of 1</p>
+<p class="page-foot" style="margin-top:2px;">__COMPUTER_GEN_LINE__</p>
+__FOOTER_EXTRA__
 </body>
 </html>

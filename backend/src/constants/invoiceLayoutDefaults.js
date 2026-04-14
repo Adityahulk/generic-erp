@@ -21,6 +21,8 @@ const DEFAULT_LAYOUT = {
   original_copy_label: 'ORIGINAL FOR RECIPIENT',
   ship_to_same_as_billing: true,
   computer_gen_subnote: 'E. & O. E.',
+  /** When true, trade template appends email next to phone in header */
+  show_company_email: false,
 };
 
 module.exports = { DEFAULT_LAYOUT };

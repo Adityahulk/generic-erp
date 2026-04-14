@@ -110,8 +110,8 @@ async function seed() {
             '1) All subject to Delhi jurisdiction only.\n'
             + '2) Goods sold will not be taken back.\n'
             + '3) Interest will be recovered @24% p.a. on bills not paid on due date.',
-          primary_color: '#4c1d95',
-          font: 'default',
+          primary_color: '#000000',
+          font: 'serif',
           header_style: 'left-aligned',
           show_vehicle_details_block: true,
           show_loan_summary: false,
