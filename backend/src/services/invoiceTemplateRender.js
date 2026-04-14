@@ -208,16 +208,22 @@ function buildHeaderHtml(inv, L, logoBlock) {
   return `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:24px;width:100%">${left}${right}</div>`;
 }
 
-function buildTradeMetaRows(inv) {
-  const vehicleNo = esc(inv.rto_number || inv.chassis_number || '—');
-  const dest = esc(inv.branch_name || '—');
-  const payType = Number(inv.loan_amount) > 0 ? 'Credit' : '—';
-  const eway = esc(inv.eway_bill_no || '—');
-  return `
-  <div><span class="lbl">Invoice No.</span><span>${esc(inv.invoice_number)}</span><span class="lbl">Date</span><span>${formatDate(inv.invoice_date)}</span></div>
-  <div><span class="lbl">Vehicle No.</span><span>${vehicleNo}</span><span class="lbl">Destination</span><span>${dest}</span></div>
-  <div><span class="lbl">Payment</span><span>${payType}</span><span class="lbl">E-Way No.</span><span>${eway}</span></div>
-  <div><span class="lbl">Status</span><span>${esc(String(inv.status || '').toUpperCase())}</span><span class="lbl">Due</span><span>${formatDate(inv.loan_due_date || inv.invoice_date)}</span></div>`;
+function tradeMetaRow(label, value) {
+  return `<div class="row"><span class="lbl">${esc(label)}</span><span>${value}</span></div>`;
+}
+
+/** Split bank details into two columns when separated by a blank line or --- line. */
+function splitBankTwoColumns(raw) {
+  if (!raw || !String(raw).trim()) return ['', ''];
+  const t = String(raw).trim();
+  const byRule = t.split(/\n\s*---+?\s*\n/).map((s) => s.trim()).filter(Boolean);
+  if (byRule.length >= 2) return [byRule[0], byRule.slice(1).join('\n\n')];
+  const paras = t.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean);
+  if (paras.length >= 2) {
+    const mid = Math.ceil(paras.length / 2);
+    return [paras.slice(0, mid).join('\n\n'), paras.slice(mid).join('\n\n')];
+  }
+  return [t, ''];
 }
 
 function buildTradeInvoiceHtml({ invoice: inv, items }, templateRow) {
@@ -229,43 +235,70 @@ function buildTradeInvoiceHtml({ invoice: inv, items }, templateRow) {
   const hasIgst = items.some((i) => Number(i.igst_amount) > 0);
   const font = L.font === 'serif' ? "Georgia, 'Times New Roman', serif" : "'Segoe UI', system-ui, sans-serif";
   const logoBlock = logo
-    ? `<img src="${logo}" alt="Logo" style="max-height:64px;margin-bottom:8px;display:block;object-fit:contain;" />`
+    ? `<img src="${logo}" alt="Logo" />`
     : '';
 
   const coStateCode = inv.company_gstin ? String(inv.company_gstin).slice(0, 2) : '—';
   const coStateName = stateNameFromGstin(inv.company_gstin);
-  const posLine = inv.customer_gstin
-    ? `${esc(String(inv.customer_gstin).slice(0, 2))} — ${esc(stateNameFromGstin(inv.customer_gstin))}`
-    : '—';
+  const posStateCode = inv.customer_gstin ? String(inv.customer_gstin).slice(0, 2) : '—';
+  const posStateName = inv.customer_gstin ? stateNameFromGstin(inv.customer_gstin) : '—';
+
+  const partyLines = (name, addr, phone, gstin) => `
+    <p><strong>${esc(name)}</strong></p>
+    <p>${esc(addr || '').replace(/\n/g, '<br/>')}</p>
+    <p>${phone ? esc(`Phone: ${phone}`) : ''}</p>
+    <p>${gstin ? esc(`GSTIN: ${gstin}`) : ''}</p>
+    <p><strong>POS:</strong> ${esc(posStateName)}</p>
+    <p><strong>State Code:</strong> ${esc(posStateCode)}</p>`;
 
   const shipInner = L.ship_to_same_as_billing !== false
-    ? `<p><strong>${esc(inv.customer_name)}</strong></p>
-       <p>${esc(inv.customer_address || '')}</p>
-       <p>${inv.customer_phone ? esc(`Phone: ${inv.customer_phone}`) : ''}</p>
-       <p>${inv.customer_gstin ? esc(`GSTIN: ${inv.customer_gstin}`) : ''}</p>
-       <p><strong>POS:</strong> ${posLine}</p>`
-    : `<p class="text-muted-foreground">Same as billing / see delivery note</p>`;
+    ? partyLines(inv.customer_name, inv.customer_address, inv.customer_phone, inv.customer_gstin)
+    : `<p style="color:#64748b;font-size:9px;">Same as billing / see delivery note</p>`;
 
+  const payType = Number(inv.loan_amount) > 0 ? 'Credit' : 'Cash';
+  const invDate = formatDate(inv.invoice_date);
+  const salesExec = L.sales_executive_label || '—';
+
+  const metaLeft = [
+    tradeMetaRow('Invoice No.', esc(inv.invoice_number)),
+    tradeMetaRow('Date', invDate),
+    tradeMetaRow('Bill Ref No.', '—'),
+    tradeMetaRow('Ref Date', '—'),
+  ].join('');
+
+  const metaRight = [
+    tradeMetaRow('Sales Executive', esc(salesExec)),
+    tradeMetaRow('Payment Type', esc(payType)),
+    tradeMetaRow('Date', invDate),
+  ].join('');
+
+  const vehicleNo = esc(inv.rto_number || inv.chassis_number || '—');
+  const dest = esc(inv.branch_name || inv.customer_address?.split(',').pop()?.trim() || '—');
+  const eway = esc(inv.eway_bill_no || '—');
+  const logisticsRow = `
+    <span><strong>E-Way No:</strong> ${eway}</span>
+    <span><strong>Vehicle No:</strong> ${vehicleNo}</span>
+    <span><strong>Destination:</strong> ${dest}</span>`;
+
+  const unitLabel = 'Pcs';
   const itemsHead = hasIgst
-    ? '<tr><th>Sl</th><th>Item</th><th>HSN</th><th>Unit</th><th class="num">Qty</th><th class="num">Gross</th><th class="num">Taxable</th><th class="num">GST%</th><th class="num">IGST</th><th class="num">Amount</th></tr>'
-    : '<tr><th>Sl</th><th>Item</th><th>HSN</th><th>Unit</th><th class="num">Qty</th><th class="num">Gross</th><th class="num">Taxable</th><th class="num">GST%</th><th class="num">CGST</th><th class="num">SGST</th><th class="num">Amount</th></tr>';
+    ? '<tr><th>Sl</th><th>Item description</th><th class="num">Qty</th><th class="center">Unit</th><th class="num">Basic rate</th><th class="num">Gross</th><th class="center">HSN/SAC</th><th class="num">IGST %</th><th class="num">IGST amt</th><th class="num">Amount</th></tr>'
+    : '<tr><th>Sl</th><th>Item description</th><th class="num">Qty</th><th class="center">Unit</th><th class="num">Basic rate</th><th class="num">Gross</th><th class="center">HSN/SAC</th><th class="num">GST %</th><th class="num">CGST</th><th class="num">SGST</th><th class="num">Amount</th></tr>';
 
   const itemsBody = items.map((item, idx) => {
     const gstRate = hasIgst ? Number(item.igst_rate) : Number(item.cgst_rate) + Number(item.sgst_rate);
-    const taxable = Number(item.amount) - Number(item.cgst_amount) - Number(item.sgst_amount) - Number(item.igst_amount);
     const gross = Number(item.unit_price) * Number(item.quantity);
     const taxCells = hasIgst
-      ? `<td class="num">&#8377;${formatPaise(item.igst_amount)}</td>`
-      : `<td class="num">&#8377;${formatPaise(item.cgst_amount)}</td><td class="num">&#8377;${formatPaise(item.sgst_amount)}</td>`;
+      ? `<td class="num">${gstRate}%</td><td class="num">&#8377;${formatPaise(item.igst_amount)}</td>`
+      : `<td class="num">${gstRate}%</td><td class="num">&#8377;${formatPaise(item.cgst_amount)}</td><td class="num">&#8377;${formatPaise(item.sgst_amount)}</td>`;
     return `<tr>
       <td class="center">${idx + 1}</td>
       <td>${esc(item.description)}</td>
-      <td class="center">${esc(item.hsn_code || '')}</td>
-      <td class="center">Pcs</td>
-      <td class="num">${item.quantity}</td>
+      <td class="num">${Number(item.quantity).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+      <td class="center">${esc(unitLabel)}</td>
+      <td class="num">&#8377;${formatPaise(item.unit_price)}</td>
       <td class="num">&#8377;${formatPaise(gross)}</td>
-      <td class="num">&#8377;${formatPaise(taxable)}</td>
-      <td class="num">${gstRate}%</td>
+      <td class="center">${esc(item.hsn_code || '')}</td>
       ${taxCells}
       <td class="num"><strong>&#8377;${formatPaise(item.amount)}</strong></td>
     </tr>`;
@@ -287,19 +320,49 @@ function buildTradeInvoiceHtml({ invoice: inv, items }, templateRow) {
     <td class="num">&#8377;${formatPaise(inv.igst_amount)}</td>
   </tr>`;
 
-  const totalsMini = `
-    <tr><td>No. of items</td><td class="num">${items.length}</td></tr>
-    <tr><td>Discount</td><td class="num">&#8377;${formatPaise(inv.discount)}</td></tr>
-    <tr><td>Taxable amount</td><td class="num">&#8377;${formatPaise(taxableTotal)}</td></tr>
-    <tr><td><strong>Grand total</strong></td><td class="num"><strong>&#8377;${formatPaise(inv.total)}</strong></td></tr>`;
+  const qtySum = items.reduce((s, i) => s + Number(i.quantity || 0), 0);
+  const totalsLeft = `
+    <div>
+      <p style="margin-bottom:6px;font-size:9px;"><strong>No. of items:</strong> ${items.length} &nbsp;|&nbsp; <strong>Total qty:</strong> ${qtySum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+      <table class="tax-mini">
+        <thead><tr><th>Taxable amt</th><th>CGST %</th><th>CGST amt</th><th>SGST %</th><th>SGST amt</th><th>IGST %</th><th>IGST amt</th></tr></thead>
+        <tbody>${taxSummaryRow}</tbody>
+      </table>
+    </div>`;
+
+  const preTax = 0;
+  const postTax = 0;
+  const cess = 0;
+  const tcs = 0;
+  const roundOff = 0;
+  const totalsRight = `
+    <div class="totals-stack">
+      <div class="r"><span>Total amount</span><span>&#8377;${formatPaise(inv.subtotal)}</span></div>
+      <div class="r"><span>Discount</span><span>&#8377;${formatPaise(inv.discount)}</span></div>
+      <div class="r"><span>Pre tax</span><span>&#8377;${formatPaise(preTax)}</span></div>
+      <div class="r"><span>Taxable amount</span><span>&#8377;${formatPaise(taxableTotal)}</span></div>
+      <div class="r"><span>IGST rate</span><span>${igstR ? `${igstR}%` : '0'}</span></div>
+      <div class="r"><span>IGST amt</span><span>&#8377;${formatPaise(inv.igst_amount)}</span></div>
+      <div class="r"><span>Cess</span><span>&#8377;${formatPaise(cess)}</span></div>
+      <div class="r"><span>Post tax</span><span>&#8377;${formatPaise(postTax)}</span></div>
+      <div class="r"><span>TCS</span><span>&#8377;${formatPaise(tcs)}</span></div>
+      <div class="r"><span>Round off</span><span>&#8377;${formatPaise(roundOff)}</span></div>
+      <div class="r"><span>Grand total</span><span>&#8377;${formatPaise(inv.total)}</span></div>
+    </div>`;
 
   const termsBlock = L.show_terms && L.terms_text
     ? `<div><strong>Terms &amp; conditions</strong></div><div style="white-space:pre-wrap;margin-top:4px">${esc(L.terms_text).replace(/\n/g, '<br/>')}</div>`
     : '';
 
-  const bankBlock = L.show_bank_details && L.bank_details
-    ? `<div style="margin-top:10px"><strong>Bank details</strong></div><div style="white-space:pre-wrap;margin-top:4px">${esc(L.bank_details).replace(/\n/g, '<br/>')}</div>`
-    : '';
+  let bankBlock = '';
+  if (L.show_bank_details && L.bank_details) {
+    const [b1, b2] = splitBankTwoColumns(L.bank_details);
+    bankBlock = `<div style="margin-top:10px"><strong>Bank details</strong></div>
+      <div class="bank-cols">
+        <div style="white-space:pre-wrap;border:1px solid #e2e8f0;padding:6px;background:#fafafa">${esc(b1).replace(/\n/g, '<br/>')}</div>
+        <div style="white-space:pre-wrap;border:1px solid #e2e8f0;padding:6px;background:#fafafa">${esc(b2).replace(/\n/g, '<br/>')}</div>
+      </div>`;
+  }
 
   const signImg = signature
     ? `<img src="${signature}" alt="Signature" />`
@@ -320,7 +383,7 @@ function buildTradeInvoiceHtml({ invoice: inv, items }, templateRow) {
   const loanBlock = L.show_loan_summary && inv.loan_amount != null && Number(inv.loan_amount) > 0
     ? `<div class="loan-box"><strong>Loan summary</strong><br/>
         Bank: ${esc(inv.loan_bank_name || '—')}<br/>
-        Amount: ₹${formatPaise(inv.loan_amount)} · EMI: ₹${formatPaise(inv.loan_emi_amount || 0)} · Tenure: ${esc(inv.loan_tenure_months || '—')} months
+        Amount: &#8377;${formatPaise(inv.loan_amount)} · EMI: &#8377;${formatPaise(inv.loan_emi_amount || 0)} · Tenure: ${esc(inv.loan_tenure_months || '—')} months
        </div>`
     : '';
 
@@ -336,19 +399,22 @@ function buildTradeInvoiceHtml({ invoice: inv, items }, templateRow) {
     COMPANY_GSTIN: esc(inv.company_gstin || '—'),
     COMPANY_STATE_CODE: esc(coStateCode),
     COMPANY_STATE_NAME: esc(coStateName),
-    META_ROWS: buildTradeMetaRows(inv),
+    META_LEFT: metaLeft,
+    META_RIGHT: metaRight,
+    LOGISTICS_ROW: logisticsRow,
     CUSTOMER_NAME: esc(inv.customer_name),
     CUSTOMER_ADDRESS: esc(inv.customer_address || '').replace(/\n/g, '<br/>'),
     CUSTOMER_PHONE: inv.customer_phone ? esc(`Phone: ${inv.customer_phone}`) : '',
     CUSTOMER_GSTIN_LINE: inv.customer_gstin ? esc(`GSTIN: ${inv.customer_gstin}`) : '',
-    PLACE_OF_SUPPLY: posLine,
+    POS_STATE_NAME: esc(posStateName),
+    POS_STATE_CODE: esc(posStateCode),
     SHIP_TO_BLOCK: shipInner,
     LOAN_BLOCK: loanBlock,
     ITEMS_HEAD: itemsHead,
     ITEMS_BODY: itemsBody,
-    TAX_SUMMARY_ROW: taxSummaryRow,
-    TOTALS_MINI: totalsMini,
-    AMOUNT_WORDS: esc(amountInWordsFromPaise(inv.total)),
+    TOTALS_LEFT: totalsLeft,
+    TOTALS_RIGHT: totalsRight,
+    AMOUNT_WORDS: esc(amountInWordsFromPaise(inv.total).toUpperCase()),
     TERMS_BLOCK: termsBlock,
     BANK_BLOCK: bankBlock,
     FOOTER_TEXT: esc(L.footer_text || ''),

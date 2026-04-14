@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -440,6 +440,14 @@ export default function SalesPage() {
     queryFn: () => api.get('/invoice-templates').then((r) => r.data.templates),
   });
 
+  /** Prefer full trade layout (MVG-style) for PDFs when that template exists. */
+  const preferredPdfTemplateId = useMemo(() => {
+    const trade = invoiceTemplates.find((t) => t.template_key === 'trade');
+    if (trade?.id) return trade.id;
+    const def = invoiceTemplates.find((t) => t.is_default);
+    return def?.id || invoiceTemplates[0]?.id || '';
+  }, [invoiceTemplates]);
+
   const { data, isLoading } = useInvoices(
     Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== '')),
   );
@@ -499,7 +507,8 @@ export default function SalesPage() {
 
   const downloadPdf = async (invoiceId, invoiceNumber, templateId) => {
     try {
-      const params = templateId ? { templateId } : {};
+      const tid = templateId || preferredPdfTemplateId || undefined;
+      const params = tid ? { templateId: tid } : {};
       const response = await api.get(`/invoices/${invoiceId}/pdf`, { params, responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
       const link = document.createElement('a');
@@ -641,19 +650,25 @@ export default function SalesPage() {
                         <>
                           <Select
                             className="h-8 w-[9.5rem] text-xs shrink-0"
-                            value={pdfTemplateChoice[inv.id] || ''}
+                            value={pdfTemplateChoice[inv.id] ?? preferredPdfTemplateId ?? ''}
                             onChange={(e) => setPdfTemplateChoice((p) => ({ ...p, [inv.id]: e.target.value }))}
                             title="Template for PDF download"
                           >
-                            <option value="">Default template</option>
                             {invoiceTemplates.map((t) => (
-                              <option key={t.id} value={t.id}>{t.name}</option>
+                              <option key={t.id} value={t.id}>
+                                {t.name}
+                                {t.id === preferredPdfTemplateId ? ' (PDF default)' : ''}
+                              </option>
                             ))}
                           </Select>
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => downloadPdf(inv.id, inv.invoice_number, pdfTemplateChoice[inv.id] || undefined)}
+                            onClick={() => downloadPdf(
+                              inv.id,
+                              inv.invoice_number,
+                              (pdfTemplateChoice[inv.id] ?? preferredPdfTemplateId) || undefined,
+                            )}
                             title="Download PDF"
                           >
                             <Download className="h-3.5 w-3.5" />
@@ -766,7 +781,7 @@ export default function SalesPage() {
         invoiceId={previewInvoice?.id}
         invoiceNumber={previewInvoice?.invoice_number}
         templates={invoiceTemplates}
-        defaultTemplateId={(invoiceTemplates.find(t => t.is_default) || invoiceTemplates[0])?.id}
+        defaultTemplateId={preferredPdfTemplateId || undefined}
       />
 
 
