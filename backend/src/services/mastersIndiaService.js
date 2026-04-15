@@ -19,9 +19,11 @@ function getConfig() {
   const isProduction = process.env.MASTERS_INDIA_ENV === 'production';
   return {
     apiBaseUrl: isProduction ? PRODUCTION_API_BASE : SANDBOX_API_BASE,
-    username: process.env.MASTERS_INDIA_USERNAME || '',
-    password: process.env.MASTERS_INDIA_PASSWORD || '',
-    apiKey: process.env.MASTERS_INDIA_API_KEY || '',
+    username: (process.env.MASTERS_INDIA_USERNAME || '').trim(),
+    password: (process.env.MASTERS_INDIA_PASSWORD || '').trim(),
+    apiKey: (process.env.MASTERS_INDIA_API_KEY || '').trim(),
+    /** `api_key` header (default) or `jwt` = Authorization: JWT <same key> — try if you only see invalid_request */
+    apiAuthMode: (process.env.MASTERS_INDIA_API_AUTH_MODE || 'api_key').toLowerCase(),
     isProduction,
   };
 }
@@ -47,15 +49,43 @@ function formatDateDdMmYyyy(dateStr) {
 }
 
 function parseMastersError(data) {
-  const r = data?.results;
+  if (data == null) return 'empty response';
+  if (typeof data === 'string') return data.slice(0, 2000);
+  if (typeof data._rawBody === 'string' && data._rawBody) {
+    return `non-JSON response: ${data._rawBody.slice(0, 1500)}`;
+  }
+  if (typeof data.error === 'string') {
+    const parts = [data.error];
+    if (typeof data.error_description === 'string' && data.error_description) {
+      parts.push(data.error_description);
+    }
+    return parts.join(' — ');
+  }
+  if (typeof data.detail === 'string') return data.detail;
+  if (Array.isArray(data.detail)) {
+    return data.detail.map((d) => (typeof d === 'string' ? d : JSON.stringify(d))).join('; ');
+  }
+  const r = data.results;
   if (typeof r?.message === 'string' && r.message) return r.message;
   if (r?.errorMessage) return r.errorMessage;
-  if (typeof data?.error === 'string') return data.error;
   try {
-    return JSON.stringify(data);
+    const s = JSON.stringify(data);
+    return s.length > 2000 ? `${s.slice(0, 2000)}…` : s;
   } catch {
     return 'Unknown Masters India API error';
   }
+}
+
+function logMastersFailure(context, response, data) {
+  const status = response?.status;
+  const snippet = (() => {
+    try {
+      return JSON.stringify(data).slice(0, 4000);
+    } catch {
+      return String(data);
+    }
+  })();
+  console.error(`[mastersIndia] ${context} HTTP ${status}: ${snippet}`);
 }
 
 function isMastersSuccess(data) {
@@ -89,15 +119,24 @@ async function getAuthToken() {
 
   const response = await fetch(`${config.apiBaseUrl}/api/v1/token-auth/`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({
       username: config.username,
       password: config.password,
     }),
   });
 
-  const data = await response.json().catch(() => ({}));
+  const text = await response.text();
+  let data = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { _rawBody: text };
+    }
+  }
   if (!response.ok) {
+    logMastersFailure('token-auth', response, data);
     throw new Error(parseMastersError(data) || `Login failed (${response.status})`);
   }
 
@@ -124,17 +163,18 @@ async function getAuthToken() {
 
 async function getAuthHeaders() {
   const config = getConfig();
+  const base = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
   if (config.apiKey) {
-    return {
-      'Content-Type': 'application/json',
-      api_key: config.apiKey,
-    };
+    if (config.apiAuthMode === 'jwt') {
+      return { ...base, Authorization: `JWT ${config.apiKey}` };
+    }
+    return { ...base, api_key: config.apiKey };
   }
   const token = await getAuthToken();
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `JWT ${token}`,
-  };
+  return { ...base, Authorization: `JWT ${token}` };
 }
 
 async function mastersPost(path, body) {
@@ -145,7 +185,15 @@ async function mastersPost(path, body) {
     headers,
     body: JSON.stringify(body),
   });
-  const data = await response.json().catch(() => ({}));
+  const text = await response.text();
+  let data = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { _rawBody: text };
+    }
+  }
   return { response, data };
 }
 
@@ -291,7 +339,10 @@ async function generateIRN(_companyId, invoiceData) {
   const { response, data } = await mastersPost('/api/v1/einvoice/', body);
 
   if (!response.ok || !isMastersSuccess(data)) {
-    throw new Error(`Masters India IRN generation failed: ${parseMastersError(data)}`);
+    logMastersFailure('generateIRN', response, data);
+    throw new Error(
+      `Masters India IRN generation failed: ${parseMastersError(data)} (HTTP ${response.status})`,
+    );
   }
 
   const msg = data.results.message;
@@ -320,7 +371,10 @@ async function cancelIRN(_companyId, irn, reason, remark, userGstin) {
   const { response, data } = await mastersPost('/api/v1/cancel-einvoice/', body);
 
   if (!response.ok || !isMastersSuccess(data)) {
-    throw new Error(`Masters India IRN cancellation failed: ${parseMastersError(data)}`);
+    logMastersFailure('cancelIRN', response, data);
+    throw new Error(
+      `Masters India IRN cancellation failed: ${parseMastersError(data)} (HTTP ${response.status})`,
+    );
   }
 
   return {
@@ -356,7 +410,10 @@ async function generateEwayBill(_companyId, irn, transportArgs, userGstin) {
   const { response, data } = await mastersPost('/api/v1/gen-ewb-by-irn/', body);
 
   if (!response.ok || !isMastersSuccess(data)) {
-    throw new Error(`Masters India E-Way Bill generation failed: ${parseMastersError(data)}`);
+    logMastersFailure('generateEwayBill', response, data);
+    throw new Error(
+      `Masters India E-Way Bill generation failed: ${parseMastersError(data)} (HTTP ${response.status})`,
+    );
   }
 
   const msg = data.results.message;
@@ -400,7 +457,10 @@ async function cancelEwayBill(_companyId, ewbNo, reason, remark, userGstin) {
   const { response, data } = await mastersPost('/api/v1/ewayBillCancel/', body);
 
   if (!response.ok || !isMastersSuccess(data)) {
-    throw new Error(`Masters India E-Way Bill cancellation failed: ${parseMastersError(data)}`);
+    logMastersFailure('cancelEwayBill', response, data);
+    throw new Error(
+      `Masters India E-Way Bill cancellation failed: ${parseMastersError(data)} (HTTP ${response.status})`,
+    );
   }
 
   return {
