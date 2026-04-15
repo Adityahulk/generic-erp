@@ -2,8 +2,9 @@
  * Masters India E-Invoice (IRN) & E-Way Bill REST integration
  * Docs: https://docs.mastersindia.co/einvoicing
  *
- * Auth: API key header `api_key`, or username/password → POST /api/v1/token-auth/
- * then `Authorization: JWT <token>` on subsequent calls.
+ * Auth: API key from UI is sent as `Authorization: JWT <key>` (same scheme as token-auth).
+ * Optional: `MASTERS_INDIA_API_AUTH_MODE=api_key_only` to send only the `api_key` header (usually not accepted on IRN).
+ * Or username/password → POST /api/v1/token-auth/ then `Authorization: JWT <token>`.
  */
 
 const SANDBOX_API_BASE = 'https://sandb-api.mastersindia.co';
@@ -22,8 +23,12 @@ function getConfig() {
     username: (process.env.MASTERS_INDIA_USERNAME || '').trim(),
     password: (process.env.MASTERS_INDIA_PASSWORD || '').trim(),
     apiKey: (process.env.MASTERS_INDIA_API_KEY || '').trim(),
-    /** `api_key` header (default) or `jwt` = Authorization: JWT <same key> — try if you only see invalid_request */
-    apiAuthMode: (process.env.MASTERS_INDIA_API_AUTH_MODE || 'api_key').toLowerCase(),
+    /**
+     * authorization_jwt (default): Authorization: JWT <API key> — required for IRN; plain api_key header alone returns "access token was not found".
+     * api_key_only: only api_key header (legacy / rare).
+     * both: JWT + api_key header.
+     */
+    apiAuthMode: (process.env.MASTERS_INDIA_API_AUTH_MODE || 'authorization_jwt').toLowerCase(),
     isProduction,
   };
 }
@@ -168,10 +173,15 @@ async function getAuthHeaders() {
     Accept: 'application/json',
   };
   if (config.apiKey) {
-    if (config.apiAuthMode === 'jwt') {
-      return { ...base, Authorization: `JWT ${config.apiKey}` };
+    const mode = config.apiAuthMode;
+    if (mode === 'api_key_only') {
+      return { ...base, api_key: config.apiKey };
     }
-    return { ...base, api_key: config.apiKey };
+    const auth = { ...base, Authorization: `JWT ${config.apiKey}` };
+    if (mode === 'both') {
+      auth.api_key = config.apiKey;
+    }
+    return auth;
   }
   const token = await getAuthToken();
   return { ...base, Authorization: `JWT ${token}` };
