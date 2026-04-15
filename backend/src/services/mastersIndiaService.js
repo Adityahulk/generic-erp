@@ -6,6 +6,7 @@
  * - UI "API key" is often an opaque string → header `api_key` only; it is NOT valid after `JWT ` (causes "Not enough segments").
  * - If the key has three dot-separated parts it is treated as a JWT → `Authorization: JWT <key>`.
  * - Opaque key + username/password → `api_key` + `Authorization: JWT <token from token-auth>`.
+ * - Opaque key only → default matches Masters docs: header `api_key` only. Optional `MASTERS_INDIA_OPAQUE_AUTH` if your gateway still demands `Authorization`.
  * - Username/password only → token-auth then `Authorization: JWT <token>`.
  */
 
@@ -30,6 +31,11 @@ function getConfig() {
      * api_key_only: never send Authorization (opaque key only — IRN may reject).
      */
     apiAuthMode: (process.env.MASTERS_INDIA_API_AUTH_MODE || 'authorization_jwt').toLowerCase(),
+    /**
+     * When only MASTERS_INDIA_API_KEY is set (opaque, not JWT). Default api_key_only per Masters docs.
+     * bearer_and_api_key | bearer_only | token_only | raw_authorization — only if api_key-only fails (gateway quirk).
+     */
+    opaqueAuth: (process.env.MASTERS_INDIA_OPAQUE_AUTH || 'api_key_only').toLowerCase(),
     isProduction,
   };
 }
@@ -185,11 +191,10 @@ async function getAuthHeaders() {
   };
   const mode = config.apiAuthMode;
 
-  if (mode === 'api_key_only' && config.apiKey) {
-    return { ...base, api_key: config.apiKey };
-  }
-
   if (config.apiKey && looksLikeJwt(config.apiKey)) {
+    if (mode === 'api_key_only') {
+      return { ...base, api_key: config.apiKey };
+    }
     const headers = { ...base, Authorization: `JWT ${config.apiKey}` };
     if (mode === 'both') {
       headers.api_key = config.apiKey;
@@ -206,7 +211,26 @@ async function getAuthHeaders() {
         Authorization: `JWT ${token}`,
       };
     }
-    return { ...base, api_key: config.apiKey };
+    const oa = config.opaqueAuth;
+    const k = config.apiKey;
+    if (oa === 'api_key_only') {
+      return { ...base, api_key: k };
+    }
+    if (oa === 'bearer_only') {
+      return { ...base, Authorization: `Bearer ${k}` };
+    }
+    if (oa === 'token_only') {
+      return { ...base, Authorization: `Token ${k}` };
+    }
+    if (oa === 'raw_authorization') {
+      return { ...base, Authorization: k };
+    }
+    // bearer_and_api_key — satisfies many stacks that read Bearer while still sending profile api_key
+    return {
+      ...base,
+      api_key: k,
+      Authorization: `Bearer ${k}`,
+    };
   }
 
   const token = await obtainAccessTokenFromLogin();

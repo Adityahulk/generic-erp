@@ -270,6 +270,7 @@ cd /home/deploy/vehicle-erp
 | `MASTERS_INDIA_ENV` | No | `sandbox` | `sandbox` or `production` (API host for e-invoice / e-way) |
 | `MASTERS_INDIA_API_KEY` | No* | — | Profile API key (`api_key` header). Opaque keys are not JWTs — pair with username/password so the app can obtain `Authorization: JWT`. *Required if not using username/password |
 | `MASTERS_INDIA_API_AUTH_MODE` | No | `authorization_jwt` | Only applies to JWT-shaped keys: `authorization_jwt`, `both`, or `api_key_only` |
+| `MASTERS_INDIA_OPAQUE_AUTH` | No | `api_key_only` | API-key **only** (no username/password), per [API key docs](https://docs.mastersindia.co/einvoicing/authentication/api-key): `api_key` header. Alternatives if the gateway errors: `bearer_and_api_key`, `bearer_only`, `token_only`, `raw_authorization` |
 | `MASTERS_INDIA_USERNAME` | No* | — | Portal username for `POST /api/v1/token-auth/`. *With opaque API key, both are required for IRN |
 | `MASTERS_INDIA_PASSWORD` | No* | — | Portal password (pair with `MASTERS_INDIA_USERNAME`) |
 
@@ -283,7 +284,7 @@ Optional. When **either** an API key **or** username + password is set, branch m
 | Production (`MASTERS_INDIA_ENV=production`) | `https://router.mastersindia.co` |
 
 - Full API reference: [Masters India e-Invoicing](https://docs.mastersindia.co/einvoicing)
-- Auth: [Authentication](https://docs.mastersindia.co/einvoicing/authentication). Opaque profile API keys use the `api_key` header; the access token from [token-auth](https://docs.mastersindia.co/einvoicing/authentication/access-tokens) goes in `Authorization: JWT …`. Set **API key + username + password** unless your key is already a three-part JWT.
+- Auth: [API key](https://docs.mastersindia.co/einvoicing/authentication/api-key) uses header **`api_key`** with the UI-generated value (default in this app). [Access token](https://docs.mastersindia.co/einvoicing/authentication/access-tokens) uses **`Authorization: JWT …`** after `token-auth`. If you use **API key only** and still see *access token was not found*, set **`MASTERS_INDIA_OPAQUE_AUTH=bearer_and_api_key`** or ask Masters support which header their environment expects.
 
 The app exposes **`GET /api/invoices/einvoice/status`** (authenticated) returning `{ enabled, environment }` so the UI can show whether integration is configured.
 
