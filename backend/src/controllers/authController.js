@@ -42,7 +42,7 @@ async function login(req, res) {
     `SELECT u.id, u.company_id, u.branch_id, u.name, u.email, u.password_hash,
             u.role, u.phone, u.is_active
      FROM users u
-     WHERE u.email = $1 AND u.is_deleted = FALSE`,
+     WHERE LOWER(TRIM(u.email)) = $1 AND u.is_deleted = FALSE`,
     [email],
   );
 
@@ -50,16 +50,23 @@ async function login(req, res) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
-  let user = null;
+  const matches = [];
   for (const row of rows) {
     if (!row.is_active) continue;
     const validPassword = await bcrypt.compare(password, row.password_hash);
-    if (validPassword) {
-      if (user) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
-      user = row;
+    if (validPassword) matches.push(row);
+  }
+
+  let user = null;
+  if (matches.length === 1) {
+    user = matches[0];
+  } else if (matches.length > 1) {
+    const hashes = new Set(matches.map((r) => r.password_hash));
+    if (hashes.size !== 1) {
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
+    matches.sort((a, b) => String(a.company_id).localeCompare(String(b.company_id)));
+    user = matches[0];
   }
 
   if (!user) {

@@ -30,12 +30,11 @@ async function seed() {
   try {
     await client.query('BEGIN');
 
-    // ── Clean existing demo data ──────────────────────────
-    const existingCompany = await client.query(
-      `SELECT id FROM companies WHERE gstin = '27AABCD1234E1Z5' AND is_deleted = FALSE LIMIT 1`
+    // ── Clean existing demo data (both legacy and current seed GSTINs) ──
+    const existingCompanies = await client.query(
+      `SELECT id FROM companies WHERE gstin IN ('27AABCD1234E1Z5', '07AASCM8531F1Z4') AND is_deleted = FALSE`
     );
-    if (existingCompany.rows.length > 0) {
-      const cid = existingCompany.rows[0].id;
+    for (const { id: cid } of existingCompanies.rows) {
       await client.query(`DELETE FROM leave_applications WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM leave_types WHERE company_id = $1`, [cid]);
       await client.query(`DELETE FROM attendance WHERE company_id = $1`, [cid]);

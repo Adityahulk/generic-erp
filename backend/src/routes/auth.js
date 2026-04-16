@@ -8,7 +8,10 @@ const authController = require('../controllers/authController');
 const router = Router();
 
 const loginSchema = z.object({
-  email: z.string().email('Valid email required'),
+  email: z
+    .string()
+    .email('Valid email required')
+    .transform((s) => s.trim().toLowerCase()),
   password: z.string().min(1, 'Password is required'),
 });
 
