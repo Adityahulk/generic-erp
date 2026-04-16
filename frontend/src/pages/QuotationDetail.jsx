@@ -228,6 +228,9 @@ export default function QuotationDetailPage() {
                 <div>
                   <Badge variant="secondary" className="text-[10px] mr-2">{it.item_type}</Badge>
                   {it.description}
+                  <span className="text-muted-foreground text-xs ml-2">
+                    · Qty {Number(it.quantity) > 0 ? it.quantity : 1}
+                  </span>
                 </div>
                 <span className="font-mono shrink-0">{formatCurrency(it.amount)}</span>
               </div>
