@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Plus, Loader2, Search, FileText, Download, X, ChevronLeft, ChevronRight,
   Check, ArrowRight, ArrowLeft, Trash2, Ban, ShieldCheck, ShieldX, Upload, Eye,
+  Landmark,
 } from 'lucide-react';
 import BulkImport from '@/components/BulkImport';
 import InvoicePreviewModal from '@/components/InvoicePreviewModal';
@@ -59,6 +61,27 @@ function useCustomerSearch(search) {
 const EMPTY_CUSTOMER = { name: '', phone: '', email: '', address: '', gstin: '' };
 const EMPTY_LINE = { description: '', hsn_code: '8708', quantity: 1, unit_price_display: '', gst_rate: 28 };
 
+function emptyLoanForm() {
+  return {
+    bank_name: '',
+    loan_amount_rupees: '',
+    interest_rate: '9.5',
+    tenure_months: '60',
+    disbursement_date: new Date().toISOString().split('T')[0],
+    grace_period_days: '0',
+    penalty_per_day_rupees: '0',
+    penalty_cap_rupees: '0',
+  };
+}
+
+function emiPreviewFromRupees(principalRupees, annualRate, tenureMonths) {
+  const p = Math.round(Number(principalRupees) * 100);
+  if (!Number.isFinite(p) || p <= 0 || tenureMonths <= 0 || annualRate <= 0) return 0;
+  const r = annualRate / 12 / 100;
+  const n = tenureMonths;
+  return Math.round(p * r * (1 + r) ** n / ((1 + r) ** n - 1));
+}
+
 function NewSaleDialog({ open, onOpenChange }) {
   const [step, setStep] = useState(1);
   const [customerMode, setCustomerMode] = useState('search'); // search | new
@@ -71,6 +94,8 @@ function NewSaleDialog({ open, onOpenChange }) {
   const [discount, setDiscount] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
+  const [addLoan, setAddLoan] = useState(false);
+  const [loanForm, setLoanForm] = useState(emptyLoanForm);
   const queryClient = useQueryClient();
 
   const { data: searchResults } = useCustomerSearch(customerSearch);
@@ -82,6 +107,7 @@ function NewSaleDialog({ open, onOpenChange }) {
       setSelectedCustomer(null); setNewCustomer(EMPTY_CUSTOMER);
       setSelectedVehicle(null); setVehicleSearch('');
       setLineItems([]); setDiscount(''); setNotes(''); setError('');
+      setAddLoan(false); setLoanForm(emptyLoanForm());
     }
   }, [open]);
 
@@ -108,12 +134,28 @@ function NewSaleDialog({ open, onOpenChange }) {
 
   const createMutation = useMutation({
     mutationFn: (payload) => api.post('/invoices', payload),
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['loans'] });
+      if (res.data?.loan) {
+        toast.success('Sale confirmed — bank loan recorded. View it under Loans.');
+      } else if (res.data?.invoice?.status === 'confirmed') {
+        toast.success('Sale confirmed');
+      } else {
+        toast.success('Draft saved');
+      }
       onOpenChange(false);
     },
-    onError: (err) => setError(err.response?.data?.error || 'Failed to create invoice'),
+    onError: (err) => {
+      const d = err.response?.data;
+      const details = d?.details;
+      if (Array.isArray(details) && details.length) {
+        setError(details.map((e) => (e.path ? `${e.path}: ${e.message}` : e.message)).join('; '));
+      } else {
+        setError(d?.error || 'Failed to create invoice');
+      }
+    },
   });
 
   const handleSubmit = (status) => {
@@ -131,6 +173,48 @@ function NewSaleDialog({ open, onOpenChange }) {
       return;
     }
 
+    let loanPayload;
+    if (status === 'confirmed' && addLoan) {
+      if (!loanForm.bank_name.trim()) {
+        setError('Enter bank name for the loan');
+        return;
+      }
+      const principal = Math.round(Number(loanForm.loan_amount_rupees) * 100);
+      if (!Number.isFinite(principal) || principal < 1) {
+        setError('Enter a valid loan amount (₹)');
+        return;
+      }
+      const pp = loanForm.penalty_per_day_rupees === '' ? 0 : Math.round(Number(loanForm.penalty_per_day_rupees) * 100);
+      if (pp > 0 && pp < 100) {
+        setError('Daily penalty must be 0 or at least ₹1/day');
+        return;
+      }
+      const tenure = Number(loanForm.tenure_months);
+      const rate = Number(loanForm.interest_rate);
+      if (!Number.isFinite(tenure) || tenure < 1 || tenure > 360) {
+        setError('Tenure must be between 1 and 360 months');
+        return;
+      }
+      if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
+        setError('Interest rate must be between 0 and 100');
+        return;
+      }
+      if (!loanForm.disbursement_date) {
+        setError('Choose loan disbursement date');
+        return;
+      }
+      loanPayload = {
+        bank_name: loanForm.bank_name.trim(),
+        loan_amount: principal,
+        interest_rate: rate,
+        tenure_months: tenure,
+        disbursement_date: loanForm.disbursement_date,
+        penalty_per_day: pp,
+        grace_period_days: Number(loanForm.grace_period_days) || 0,
+        penalty_cap: Math.round((Number(loanForm.penalty_cap_rupees) || 0) * 100),
+      };
+    }
+
     const payload = {
       items,
       discount: discount ? Math.round(Number(discount) * 100) : 0,
@@ -138,6 +222,8 @@ function NewSaleDialog({ open, onOpenChange }) {
       notes: notes || undefined,
       vehicle_id: selectedVehicle?.id,
     };
+
+    if (loanPayload) payload.loan = loanPayload;
 
     if (selectedCustomer) {
       payload.customer_id = selectedCustomer.id;
@@ -377,6 +463,133 @@ function NewSaleDialog({ open, onOpenChange }) {
                 <div className="flex justify-between font-bold text-base border-t pt-1"><span>Total</span><span>₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
               </div>
             </div>
+
+            <Card className="border-dashed">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Landmark className="h-4 w-4" /> Bank loan (optional)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={addLoan}
+                    onChange={(e) => {
+                      const c = e.target.checked;
+                      setAddLoan(c);
+                      if (c) {
+                        setLoanForm((f) => ({
+                          ...f,
+                          loan_amount_rupees: f.loan_amount_rupees || (Math.round(grandTotal * 100) / 100).toFixed(2),
+                        }));
+                      }
+                    }}
+                    className="mt-1 rounded border-input"
+                  />
+                  <span>
+                    Record a bank loan with this sale (only when you click <strong>Confirm Sale</strong>). Same data as the{' '}
+                    <Link to="/loans" className="text-primary underline font-medium">Loans</Link> page — EMI, due date, and penalties apply automatically.
+                  </span>
+                </label>
+                {addLoan && (
+                  <>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label>Bank name *</Label>
+                        <Input
+                          value={loanForm.bank_name}
+                          onChange={(e) => setLoanForm((f) => ({ ...f, bank_name: e.target.value }))}
+                          placeholder="e.g. HDFC Bank"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Loan principal (₹) *</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={loanForm.loan_amount_rupees}
+                          onChange={(e) => setLoanForm((f) => ({ ...f, loan_amount_rupees: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Interest rate (% p.a.) *</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                          value={loanForm.interest_rate}
+                          onChange={(e) => setLoanForm((f) => ({ ...f, interest_rate: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Tenure (months) *</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="360"
+                          value={loanForm.tenure_months}
+                          onChange={(e) => setLoanForm((f) => ({ ...f, tenure_months: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Disbursement date *</Label>
+                        <Input
+                          type="date"
+                          value={loanForm.disbursement_date}
+                          onChange={(e) => setLoanForm((f) => ({ ...f, disbursement_date: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Grace period (days)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={loanForm.grace_period_days}
+                          onChange={(e) => setLoanForm((f) => ({ ...f, grace_period_days: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Penalty per day (₹)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={loanForm.penalty_per_day_rupees}
+                          onChange={(e) => setLoanForm((f) => ({ ...f, penalty_per_day_rupees: e.target.value }))}
+                        />
+                        <p className="text-[11px] text-muted-foreground">0 = none. If set, minimum ₹1/day.</p>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Max penalty cap (₹)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={loanForm.penalty_cap_rupees}
+                          onChange={(e) => setLoanForm((f) => ({ ...f, penalty_cap_rupees: e.target.value }))}
+                        />
+                        <p className="text-[11px] text-muted-foreground">0 = no cap</p>
+                      </div>
+                    </div>
+                    {(() => {
+                      const emi = emiPreviewFromRupees(
+                        loanForm.loan_amount_rupees,
+                        Number(loanForm.interest_rate),
+                        Number(loanForm.tenure_months),
+                      );
+                      return emi > 0 ? (
+                        <p className="text-xs bg-muted/50 rounded-md px-3 py-2">
+                          Estimated EMI: <span className="font-semibold">{formatCurrency(emi)}</span>/month
+                        </p>
+                      ) : null;
+                    })()}
+                  </>
+                )}
+              </CardContent>
+            </Card>
           </div>
         )}
 

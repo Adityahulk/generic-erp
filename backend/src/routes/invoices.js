@@ -37,6 +37,33 @@ const itemSchema = z.object({
   gst_rate: z.number().min(0).max(100).optional(),
 });
 
+const PAISE_HINT_LOAN =
+  'penalty_per_day must be integer paise (UI sends rupees × 100).';
+
+const invoiceLoanBodySchema = z
+  .object({
+    bank_name: z.string().min(1, 'Bank name required').max(255),
+    loan_amount: z.number().int().min(1, 'Loan amount in paise'),
+    interest_rate: z.number().min(0).max(100),
+    tenure_months: z.number().int().min(1).max(360),
+    disbursement_date: z.string().min(1, 'Disbursement date required'),
+    penalty_per_day: z
+      .number({ invalid_type_error: PAISE_HINT_LOAN })
+      .int(PAISE_HINT_LOAN)
+      .min(0, PAISE_HINT_LOAN),
+    grace_period_days: z.number().int().min(0, 'grace_period_days must be >= 0'),
+    penalty_cap: z.number().int().min(0).optional().default(0),
+  })
+  .superRefine((data, ctx) => {
+    if (data.penalty_per_day > 0 && data.penalty_per_day < 100) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Daily penalty must be 0 or at least ₹1/day (100 paise)',
+        path: ['penalty_per_day'],
+      });
+    }
+  });
+
 const createInvoiceSchema = z.object({
   customer_id: z.string().uuid().optional(),
   customer: customerSchema.optional(),
@@ -46,9 +73,13 @@ const createInvoiceSchema = z.object({
   invoice_date: z.string().optional(),
   status: z.enum(['draft', 'confirmed']).optional().default('draft'),
   notes: z.string().max(2000).optional(),
+  loan: invoiceLoanBodySchema.optional(),
 }).refine(
   (d) => d.customer_id || d.customer,
   { message: 'Either customer_id or customer details required' },
+).refine(
+  (d) => !d.loan || d.status === 'confirmed',
+  { message: 'Loan can only be added when confirming the sale, not for drafts', path: ['loan'] },
 );
 
 // Static paths must be before /:id

@@ -61,6 +61,44 @@ async function createLoan(req, res) {
   res.status(201).json({ loan: rows[0] });
 }
 
+/**
+ * Insert loan in the same DB transaction as a confirmed invoice (sales flow).
+ * Caller must verify invoice is confirmed and customer_id matches the invoice row.
+ */
+async function insertLoanForInvoiceInTransaction(client, {
+  company_id,
+  invoice_id,
+  customer_id,
+  loan,
+}) {
+  const emiAmount = calculateEmi(loan.loan_amount, loan.interest_rate, loan.tenure_months);
+  const dueDate = addMonths(loan.disbursement_date, loan.tenure_months);
+  const { rows } = await client.query(
+    `INSERT INTO loans
+       (company_id, invoice_id, customer_id, bank_name, loan_amount, interest_rate,
+        tenure_months, emi_amount, disbursement_date, due_date, penalty_per_day,
+        grace_period_days, penalty_cap, status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'active')
+     RETURNING *`,
+    [
+      company_id,
+      invoice_id,
+      customer_id,
+      loan.bank_name,
+      loan.loan_amount,
+      loan.interest_rate,
+      loan.tenure_months,
+      emiAmount,
+      loan.disbursement_date,
+      dueDate,
+      loan.penalty_per_day,
+      loan.grace_period_days,
+      loan.penalty_cap ?? 0,
+    ],
+  );
+  return rows[0];
+}
+
 async function listLoans(req, res) {
   const company_id = req.user.company_id;
   const { role, branch_id: userBranch } = req.user;
@@ -369,6 +407,7 @@ async function listOverdue(req, res) {
 
 module.exports = {
   createLoan,
+  insertLoanForInvoiceInTransaction,
   listLoans,
   getLoan,
   closeLoan,

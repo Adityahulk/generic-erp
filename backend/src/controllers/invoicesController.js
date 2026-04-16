@@ -1,6 +1,7 @@
 const { query, getClient } = require('../config/db');
 const { isInterstate, calculateGst, getGstRateForHsn } = require('../services/gstService');
 const { logAudit } = require('../middleware/auditLog');
+const { insertLoanForInvoiceInTransaction } = require('./loansController');
 
 async function generateInvoiceNumber(client, companyId, branchId) {
   const year = new Date().getFullYear();
@@ -169,6 +170,17 @@ async function createInvoice(req, res) {
   try {
     await client.query('BEGIN');
     const invoice = await insertInvoiceWithItems(client, company_id, branch_id, data);
+
+    let loanRow = null;
+    if (data.loan && data.status === 'confirmed') {
+      loanRow = await insertLoanForInvoiceInTransaction(client, {
+        company_id,
+        invoice_id: invoice.id,
+        customer_id: invoice.customer_id,
+        loan: data.loan,
+      });
+    }
+
     await client.query('COMMIT');
 
     const result = await fetchFullInvoice(invoice.id, company_id);
@@ -176,7 +188,13 @@ async function createInvoice(req, res) {
       companyId: company_id, userId: req.user.id, action: 'create', entity: 'invoice',
       entityId: invoice.id, newValue: { invoice_number: invoice.invoice_number, total: invoice.total }, req,
     });
-    res.status(201).json(result);
+    if (loanRow) {
+      logAudit({
+        companyId: company_id, userId: req.user.id, action: 'create', entity: 'loan',
+        entityId: loanRow.id, newValue: { invoice_id: invoice.id, bank_name: loanRow.bank_name }, req,
+      });
+    }
+    res.status(201).json(loanRow ? { ...result, loan: loanRow } : result);
   } catch (err) {
     await client.query('ROLLBACK');
     if (err.statusCode) {
