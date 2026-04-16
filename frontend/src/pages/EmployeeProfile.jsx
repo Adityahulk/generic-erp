@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -19,7 +18,7 @@ import {
 import api from '@/lib/api';
 import useAuthStore from '@/store/authStore';
 import { formatCurrency, formatDate, formatNumber, cn, toInputDate } from '@/lib/utils';
-import { Loader2, ArrowDownRight, ArrowUpRight, ChevronLeft } from 'lucide-react';
+import { Loader2, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 const EMP_TYPE_LABEL = {
@@ -245,165 +244,135 @@ export default function EmployeeProfile() {
           </Card>
         </div>
 
-        <div className="lg:col-span-8">
-          <Tabs defaultValue="employment">
-            <TabsList className="flex-wrap h-auto gap-1">
-              <TabsTrigger value="employment">Employment</TabsTrigger>
-              <TabsTrigger value="salary">Salary history</TabsTrigger>
-              <TabsTrigger value="attendance">Attendance</TabsTrigger>
-              <TabsTrigger value="leave">Leave balances</TabsTrigger>
-              <TabsTrigger value="docs">Documents</TabsTrigger>
-            </TabsList>
+        <div className="lg:col-span-8 space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+              <CardTitle className="text-base">Employment</CardTitle>
+              {isAdmin && (
+                <Button size="sm" variant="outline" onClick={() => {
+                  setSalaryForm({
+                    annual_salary: String(Math.round(annualRupees)),
+                    salary_effective_date: toInputDate(new Date().toISOString()),
+                    salary_change_reason: '',
+                  });
+                  setSalaryOpen(true);
+                }}
+                >
+                  Revise salary
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="text-sm space-y-3">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <p className="text-muted-foreground text-xs">Joining date</p>
+                  <p className="font-medium">{formatDate(profile.joining_date)}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Tenure: {tenurePhrase(profile.joining_date)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground text-xs">Probation end</p>
+                  <p className="font-medium">{probEnd ? formatDate(probEnd) : '—'}</p>
+                  {probationDone && <p className="text-xs text-emerald-600 mt-0.5">Probation completed</p>}
+                </div>
+              </div>
+              <div className="rounded-lg border border-border p-4 bg-muted/30">
+                <p className="text-xs text-muted-foreground">Annual salary</p>
+                <p className="text-2xl font-semibold tracking-tight">{formatCurrency(profile.annual_salary)}<span className="text-sm font-normal text-muted-foreground">/year</span></p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Monthly <span className="font-medium text-foreground">{formatNumber(Math.round(monthlyRupees))}</span>
+                  {' · '}
+                  Daily <span className="font-medium text-foreground">{formatNumber(Math.round(dailyRupees))}</span>
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
-            <TabsContent value="employment" className="mt-4 space-y-4">
-              <Card>
-                <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-                  <CardTitle className="text-base">Employment details</CardTitle>
-                  {isAdmin && (
-                    <Button size="sm" variant="outline" onClick={() => {
-                      setSalaryForm({
-                        annual_salary: String(Math.round(annualRupees)),
-                        salary_effective_date: toInputDate(new Date().toISOString()),
-                        salary_change_reason: '',
-                      });
-                      setSalaryOpen(true);
-                    }}>
-                      Revise salary
-                    </Button>
-                  )}
-                </CardHeader>
-                <CardContent className="text-sm space-y-3">
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    <div>
-                      <p className="text-muted-foreground text-xs">Joining date</p>
-                      <p className="font-medium">{formatDate(profile.joining_date)}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">Tenure: {tenurePhrase(profile.joining_date)}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Probation end</p>
-                      <p className="font-medium">{probEnd ? formatDate(probEnd) : '—'}</p>
-                      {probationDone && <p className="text-xs text-emerald-600 mt-0.5">Probation completed</p>}
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-border p-4 bg-muted/30">
-                    <p className="text-xs text-muted-foreground">Annual salary</p>
-                    <p className="text-2xl font-semibold tracking-tight">{formatCurrency(profile.annual_salary)}<span className="text-sm font-normal text-muted-foreground">/year</span></p>
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Monthly <span className="font-medium text-foreground">{formatNumber(Math.round(monthlyRupees))}</span>
-                      {' · '}
-                      Daily <span className="font-medium text-foreground">{formatNumber(Math.round(dailyRupees))}</span>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Salary revisions</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {history.length === 0 && <p className="text-sm text-muted-foreground">No revisions yet.</p>}
+              {history.map((row) => {
+                const oldR = rupeesFromPaise(row.old_salary);
+                const newR = rupeesFromPaise(row.new_salary);
+                const pct = oldR ? (((newR - oldR) / oldR) * 100).toFixed(1) : '0';
+                return (
+                  <div key={row.id} className="border border-border rounded-lg p-3 text-sm space-y-1">
+                    <p className="font-medium">{formatDate(row.effective_date)}</p>
+                    <p>
+                      {formatCurrency(row.old_salary)} → {formatCurrency(row.new_salary)}
+                      <span className="text-muted-foreground">
+                        {' '}({newR >= oldR ? '+' : ''}{pct}% · {formatNumber(Math.round(newR - oldR))} ₹)
+                      </span>
                     </p>
+                    {row.reason && <p className="text-muted-foreground">{row.reason}</p>}
+                    <p className="text-xs text-muted-foreground">By {row.revised_by_name || '—'}</p>
                   </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+                );
+              })}
+            </CardContent>
+          </Card>
 
-            <TabsContent value="salary" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Salary revisions</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {history.length === 0 && <p className="text-sm text-muted-foreground">No revisions yet.</p>}
-                  {history.map((row) => {
-                    const oldR = rupeesFromPaise(row.old_salary);
-                    const newR = rupeesFromPaise(row.new_salary);
-                    const pct = oldR ? (((newR - oldR) / oldR) * 100).toFixed(1) : '0';
-                    const up = newR >= oldR;
-                    return (
-                      <div key={row.id} className="border border-border rounded-lg p-3 text-sm space-y-1">
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <span className="font-medium">{formatDate(row.effective_date)}</span>
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            {up ? <ArrowUpRight className="h-4 w-4 text-emerald-600" /> : <ArrowDownRight className="h-4 w-4 text-red-600" />}
-                            {up ? '+' : ''}{pct}%
-                          </span>
-                        </div>
-                        <p>
-                          {formatCurrency(row.old_salary)} → {formatCurrency(row.new_salary)}
-                          <span className="text-muted-foreground"> ({formatNumber(Math.round(newR - oldR))} ₹)</span>
-                        </p>
-                        {row.reason && <p className="text-muted-foreground">{row.reason}</p>}
-                        <p className="text-xs text-muted-foreground">By {row.revised_by_name || '—'}</p>
-                      </div>
-                    );
-                  })}
-                </CardContent>
-              </Card>
-            </TabsContent>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle className="text-base">Attendance (this month)</CardTitle>
+              <Button variant="outline" size="sm" asChild>
+                <Link to={attendanceHref}>Full grid</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {attQuery.isLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                  <div className="rounded-lg border p-3">
+                    <p className="text-muted-foreground text-xs">Present</p>
+                    <p className="text-xl font-semibold">{att?.present ?? '—'}</p>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <p className="text-muted-foreground text-xs">Absent</p>
+                    <p className="text-xl font-semibold">{att?.absent ?? '—'}</p>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <p className="text-muted-foreground text-xs">On leave</p>
+                    <p className="text-xl font-semibold">{att?.on_leave ?? '—'}</p>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <p className="text-muted-foreground text-xs">Hours</p>
+                    <p className="text-xl font-semibold">{att?.hours_month ?? '—'}</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-            <TabsContent value="attendance" className="mt-4 space-y-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between gap-2">
-                  <CardTitle className="text-base">This month</CardTitle>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link to={attendanceHref}>Open attendance grid</Link>
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  {attQuery.isLoading ? (
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                  ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                      <div className="rounded-lg border p-3">
-                        <p className="text-muted-foreground text-xs">Present</p>
-                        <p className="text-xl font-semibold">{att?.present ?? '—'}</p>
-                      </div>
-                      <div className="rounded-lg border p-3">
-                        <p className="text-muted-foreground text-xs">Absent</p>
-                        <p className="text-xl font-semibold">{att?.absent ?? '—'}</p>
-                      </div>
-                      <div className="rounded-lg border p-3">
-                        <p className="text-muted-foreground text-xs">On leave</p>
-                        <p className="text-xl font-semibold">{att?.on_leave ?? '—'}</p>
-                      </div>
-                      <div className="rounded-lg border p-3">
-                        <p className="text-muted-foreground text-xs">Hours (month)</p>
-                        <p className="text-xl font-semibold">{att?.hours_month ?? '—'}</p>
-                      </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Leave ({leaveQuery.data?.year ?? new Date().getFullYear()})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {leaveQuery.isLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                <div className="space-y-2 text-sm">
+                  {(leaveQuery.data?.balances || []).map((b) => (
+                    <div key={b.leave_type_id} className="flex justify-between border-b border-border/50 py-2">
+                      <span>{b.name} <span className="text-muted-foreground">({b.code})</span></span>
+                      <span>
+                        {b.unlimited ? 'Unlimited' : (
+                          <>
+                            <span className="font-medium">{b.available != null ? Number(b.available).toFixed(1) : '—'}</span>
+                            <span className="text-muted-foreground"> / {b.days_per_year} d · used {Number(b.used).toFixed(1)}</span>
+                          </>
+                        )}
+                      </span>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="leave" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Leave balances ({leaveQuery.data?.year ?? new Date().getFullYear()})</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {leaveQuery.isLoading ? (
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                  ) : (
-                    <div className="space-y-2 text-sm">
-                      {(leaveQuery.data?.balances || []).map((b) => (
-                        <div key={b.leave_type_id} className="flex justify-between border-b border-border/50 py-2">
-                          <span>{b.name} <span className="text-muted-foreground">({b.code})</span></span>
-                          <span>
-                            {b.unlimited ? 'Unlimited' : (
-                              <>
-                                <span className="font-medium">{b.available != null ? Number(b.available).toFixed(1) : '—'}</span>
-                                <span className="text-muted-foreground"> / {b.days_per_year} d · used {Number(b.used).toFixed(1)}</span>
-                              </>
-                            )}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="docs" className="mt-4">
-              <Card>
-                <CardContent className="py-12 text-center text-muted-foreground text-sm">
-                  Document upload coming soon
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {isAdmin && (
             <Card className="mt-6 border-dashed">
