@@ -10,7 +10,7 @@ import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import api from '@/lib/api';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
-import { FileSpreadsheet, TrendingUp, Package, Download, Loader2, Zap } from 'lucide-react';
+import { FileSpreadsheet, TrendingUp, Download, Loader2, Zap } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import ReadOnlyBadge from '@/components/ReadOnlyBadge';
 
@@ -411,96 +411,6 @@ function SalesSummaryTab() {
   );
 }
 
-// ────────────────────────── Stock Aging Tab ──────────────────────────
-
-const AGING_COLORS = {
-  '0-30': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', badge: 'success', label: 'Fresh' },
-  '31-60': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', badge: 'warning', label: 'Moderate' },
-  '61-90': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', badge: 'warning', label: 'Aging' },
-  '90+': { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', badge: 'destructive', label: 'Stale' },
-};
-
-function StockAgingTab() {
-  const { data, isLoading } = useQuery({
-    queryKey: ['stock-aging'],
-    queryFn: () => api.get('/reports/stock-aging').then((r) => r.data),
-  });
-
-  if (isLoading) {
-    return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>;
-  }
-
-  if (!data) return null;
-
-  return (
-    <div className="space-y-4">
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <SummaryCard label="Total In Stock" value={data.total_in_stock} />
-        {data.summary.map((s) => {
-          const colors = AGING_COLORS[s.range] || {};
-          return (
-            <Card key={s.range} className={cn(colors.bg, colors.border, 'border')}>
-              <CardContent className="pt-4 pb-3">
-                <p className={cn('text-xs', colors.text)}>{s.range} days — {colors.label}</p>
-                <p className={cn('text-lg font-bold mt-0.5', colors.text)}>{s.count}</p>
-                <p className="text-xs text-muted-foreground">{formatCurrency(s.total_value)}</p>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* Detailed tables per bucket */}
-      {Object.entries(data.buckets).map(([range, vehicles]) => {
-        if (vehicles.length === 0) return null;
-        const colors = AGING_COLORS[range] || {};
-
-        return (
-          <Card key={range}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                {range} Days
-                <Badge variant={colors.badge}>{vehicles.length} vehicles</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left py-1.5 font-medium text-muted-foreground">Chassis</th>
-                      <th className="text-left py-1.5 font-medium text-muted-foreground">Vehicle</th>
-                      <th className="text-left py-1.5 font-medium text-muted-foreground">Color</th>
-                      <th className="text-left py-1.5 font-medium text-muted-foreground">Branch</th>
-                      <th className="text-right py-1.5 font-medium text-muted-foreground">Purchase Price</th>
-                      <th className="text-right py-1.5 font-medium text-muted-foreground">Selling Price</th>
-                      <th className="text-right py-1.5 font-medium text-muted-foreground">Days</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {vehicles.map((v) => (
-                      <tr key={v.id} className={cn('border-b border-border/50', v.days_in_stock > 90 && 'bg-red-50/50')}>
-                        <td className="py-1.5 font-mono text-xs">{v.chassis_number}</td>
-                        <td className="py-1.5">{v.make} {v.model} {v.variant || ''}</td>
-                        <td className="py-1.5">{v.color || '—'}</td>
-                        <td className="py-1.5">{v.branch_name || '—'}</td>
-                        <td className="py-1.5 text-right">{formatCurrency(Number(v.purchase_price))}</td>
-                        <td className="py-1.5 text-right">{formatCurrency(Number(v.selling_price))}</td>
-                        <td className={cn('py-1.5 text-right font-medium', colors.text)}>{v.days_in_stock}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
-  );
-}
-
 // ────────────────────────── Main Reports Page ──────────────────────────
 
 export default function ReportsPage() {
@@ -515,7 +425,7 @@ export default function ReportsPage() {
             <h2 className="text-2xl font-semibold">Reports</h2>
             {isCA ? <ReadOnlyBadge /> : null}
           </div>
-          <p className="text-sm text-muted-foreground">GST filing, sales analytics, and inventory aging</p>
+          <p className="text-sm text-muted-foreground">GST filing and sales analytics</p>
         </div>
       </div>
 
@@ -529,14 +439,10 @@ export default function ReportsPage() {
           <TabsTrigger value="sales" className="gap-1.5">
             <TrendingUp className="h-4 w-4" /> Sales Summary
           </TabsTrigger>
-          <TabsTrigger value="aging" className="gap-1.5">
-            <Package className="h-4 w-4" /> Stock Aging
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="gstr1"><GSTR1Tab /></TabsContent>
         <TabsContent value="sales"><SalesSummaryTab /></TabsContent>
-        <TabsContent value="aging"><StockAgingTab /></TabsContent>
       </Tabs>
     </AppLayout>
   );

@@ -5,7 +5,6 @@ const {
   gstr1,
   gstr1Export,
   salesSummary,
-  stockAging,
   gstr3bExport,
   purchaseRegisterExport,
   salesRegisterExport,
@@ -27,6 +26,5 @@ router.get('/sales-register/export', reportAccess, salesRegisterExport);
 router.get('/expenses/export', reportAccess, expenseRegisterExport);
 router.get('/pl-summary/pdf', reportAccess, plSummaryPdf);
 router.get('/sales-summary', reportAccess, salesSummary);
-router.get('/stock-aging', reportAccess, stockAging);
 
 module.exports = router;

@@ -347,56 +347,6 @@ async function salesSummary(req, res) {
   }
 }
 
-// ────────────────────────── Stock Aging ──────────────────────────
-
-async function stockAging(req, res) {
-  try {
-    const company_id = req.user.company_id;
-
-    const { rows } = await query(
-      `SELECT v.id, v.chassis_number, v.engine_number, v.make, v.model, v.variant,
-              v.color, v.year, v.purchase_price, v.selling_price, v.created_at,
-              b.name AS branch_name,
-              EXTRACT(DAY FROM NOW() - v.created_at)::int AS days_in_stock
-       FROM vehicles v
-       LEFT JOIN branches b ON b.id = v.branch_id
-       WHERE v.company_id = $1 AND v.status = 'in_stock' AND v.is_deleted = FALSE
-       ORDER BY v.created_at ASC`,
-      [company_id],
-    );
-
-    const buckets = {
-      '0-30': [],
-      '31-60': [],
-      '61-90': [],
-      '90+': [],
-    };
-
-    for (const v of rows) {
-      const d = v.days_in_stock;
-      if (d <= 30) buckets['0-30'].push(v);
-      else if (d <= 60) buckets['31-60'].push(v);
-      else if (d <= 90) buckets['61-90'].push(v);
-      else buckets['90+'].push(v);
-    }
-
-    const summary = Object.entries(buckets).map(([range, items]) => ({
-      range,
-      count: items.length,
-      total_value: items.reduce((s, v) => s + Number(v.purchase_price), 0),
-    }));
-
-    res.json({
-      total_in_stock: rows.length,
-      summary,
-      buckets,
-    });
-  } catch (err) {
-    console.error('stockAging error:', err.message);
-    res.status(500).json({ error: 'Failed to generate stock aging report' });
-  }
-}
-
 // ────────────────────────── CA quick exports ──────────────────────────
 
 async function gstr3bExport(req, res) {
@@ -666,7 +616,6 @@ module.exports = {
   gstr1,
   gstr1Export,
   salesSummary,
-  stockAging,
   gstr3bExport,
   purchaseRegisterExport,
   salesRegisterExport,
