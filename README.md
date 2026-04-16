@@ -37,6 +37,13 @@ cd vehicle-erp
 docker compose up -d
 ```
 
+With the full Compose stack, the database is only reachable **inside** the Docker network. After the API container is healthy, run migrations and seed **in the API container** (not on the host unless you published Postgres and installed `backend/node_modules`):
+
+```bash
+docker compose exec api npm run migrate
+docker compose exec api npm run seed
+```
+
 **Option B — System-installed:**
 
 ```bash

@@ -1,4 +1,9 @@
-require('dotenv').config();
+try {
+  require('dotenv').config();
+} catch (e) {
+  if (e.code !== 'MODULE_NOT_FOUND') throw e;
+  console.warn('[seed] dotenv not found — using process.env only. From host run: cd backend && npm install');
+}
 
 const bcrypt = require('bcryptjs');
 const { pool } = require('../config/db');

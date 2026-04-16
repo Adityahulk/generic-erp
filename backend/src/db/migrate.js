@@ -1,4 +1,9 @@
-require('dotenv').config();
+try {
+  require('dotenv').config();
+} catch (e) {
+  if (e.code !== 'MODULE_NOT_FOUND') throw e;
+  console.warn('[migrate] dotenv not found — using process.env only. From host run: cd backend && npm install');
+}
 
 const fs = require('fs');
 const path = require('path');
