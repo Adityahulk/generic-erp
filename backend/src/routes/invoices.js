@@ -129,6 +129,8 @@ router.get('/', ic.listInvoices);
 router.get('/:id/preview', async (req, res) => {
   try {
     const company_id = req.user.company_id;
+    const denied = await ic.invoiceBranchAccessError(req, req.params.id);
+    if (denied) return res.status(denied.status).json({ error: denied.error });
     const data = await ic.fetchFullInvoice(req.params.id, company_id);
     if (!data) return res.status(404).json({ error: 'Invoice not found' });
     const html = await generateInvoiceHtmlForPreview(
@@ -147,6 +149,8 @@ router.get('/:id/preview', async (req, res) => {
 router.get('/:id/pdf', async (req, res) => {
   try {
     const company_id = req.user.company_id;
+    const denied = await ic.invoiceBranchAccessError(req, req.params.id);
+    if (denied) return res.status(denied.status).json({ error: denied.error });
     const data = await ic.fetchFullInvoice(req.params.id, company_id);
     if (!data) return res.status(404).json({ error: 'Invoice not found' });
 
@@ -177,6 +181,8 @@ router.post('/:id/einvoice/generate', requireNotRole('ca'), requireMinRole('bran
   try {
     const company_id = req.user.company_id;
     const invoiceId = req.params.id;
+    const denied = await ic.invoiceBranchAccessError(req, invoiceId);
+    if (denied) return res.status(denied.status).json({ success: false, error: denied.error });
 
     if (!mastersIndia.isMastersIndiaEnabled()) {
       return res.status(400).json({
@@ -265,6 +271,8 @@ router.post('/:id/einvoice/cancel', requireNotRole('ca'), requireMinRole('branch
     const company_id = req.user.company_id;
     const invoiceId = req.params.id;
     const { reason, remark } = req.body || {};
+    const denied = await ic.invoiceBranchAccessError(req, invoiceId);
+    if (denied) return res.status(denied.status).json({ success: false, error: denied.error });
 
     const { rows: inv } = await query(
       `SELECT i.id, i.irn, i.irn_status, i.irn_date, co.gstin AS company_gstin
@@ -303,6 +311,8 @@ router.post('/:id/einvoice/cancel', requireNotRole('ca'), requireMinRole('branch
 router.get('/:id/einvoice', async (req, res) => {
   try {
     const company_id = req.user.company_id;
+    const denied = await ic.invoiceBranchAccessError(req, req.params.id);
+    if (denied) return res.status(denied.status).json({ success: false, error: denied.error });
     const { rows } = await query(
       `SELECT irn, irn_date, ack_number, ack_date, irn_status, signed_qr, irn_cancel_date, irn_cancel_reason
        FROM invoices WHERE id = $1 AND company_id = $2 AND is_deleted = FALSE`,
@@ -322,6 +332,8 @@ router.post('/:id/ewaybill/generate', requireNotRole('ca'), requireMinRole('bran
   try {
     const company_id = req.user.company_id;
     const invoiceId = req.params.id;
+    const denied = await ic.invoiceBranchAccessError(req, invoiceId);
+    if (denied) return res.status(denied.status).json({ success: false, error: denied.error });
 
     if (!mastersIndia.isMastersIndiaEnabled()) {
       return res.status(400).json({
@@ -371,6 +383,8 @@ router.post('/:id/ewaybill/cancel', requireNotRole('ca'), requireMinRole('branch
     const company_id = req.user.company_id;
     const invoiceId = req.params.id;
     const { reason, remark } = req.body || {};
+    const denied = await ic.invoiceBranchAccessError(req, invoiceId);
+    if (denied) return res.status(denied.status).json({ success: false, error: denied.error });
 
     const { rows: inv } = await query(
       `SELECT i.eway_bill_no, i.eway_bill_status, co.gstin AS company_gstin

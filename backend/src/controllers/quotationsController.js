@@ -1,4 +1,21 @@
 const { query, getClient } = require('../config/db');
+
+/** @returns {Promise<{ status: number, error: string } | null>} null if allowed */
+async function quotationBranchAccessError(req, quotationId) {
+  const company_id = req.user.company_id;
+  const { role, branch_id: userBranch } = req.user;
+  if (role !== 'staff' && role !== 'branch_manager') return null;
+
+  const { rows } = await query(
+    `SELECT branch_id FROM quotations WHERE id = $1 AND company_id = $2 AND is_deleted = FALSE`,
+    [quotationId, company_id],
+  );
+  if (!rows.length) return { status: 404, error: 'Quotation not found' };
+  if (String(rows[0].branch_id || '') !== String(userBranch || '')) {
+    return { status: 403, error: 'Not allowed for this branch' };
+  }
+  return null;
+}
 const { logAudit } = require('../middleware/auditLog');
 const { computeQuotationTotals, resolveInterstate } = require('../services/quotationCalculator');
 const { buildQuotationHtml, DEFAULT_TERMS } = require('../services/quotationRenderService');
@@ -452,6 +469,8 @@ async function listQuotations(req, res) {
 }
 
 async function getQuotation(req, res) {
+  const denied = await quotationBranchAccessError(req, req.params.id);
+  if (denied) return res.status(denied.status).json({ error: denied.error });
   const bundle = await loadQuotationBundle(req.params.id, req.user.company_id);
   if (!bundle) return res.status(404).json({ error: 'Quotation not found' });
   res.json(stripBundleForJson(bundle));
@@ -468,6 +487,11 @@ async function updateQuotation(req, res) {
     [id, company_id],
   );
   if (!cur.length) return res.status(404).json({ error: 'Quotation not found' });
+  if (req.user.role === 'branch_manager' || req.user.role === 'staff') {
+    if (String(cur[0].branch_id || '') !== String(req.user.branch_id || '')) {
+      return res.status(403).json({ error: 'Not allowed for this branch' });
+    }
+  }
   if (!['draft', 'sent'].includes(cur[0].status)) {
     return res.status(400).json({ error: 'Only draft or sent quotations can be updated' });
   }
@@ -523,6 +547,8 @@ async function updateQuotation(req, res) {
 async function sendQuotation(req, res) {
   const { id } = req.params;
   const company_id = req.user.company_id;
+  const denied = await quotationBranchAccessError(req, id);
+  if (denied) return res.status(denied.status).json({ error: denied.error });
   const { rows } = await query(
     `UPDATE quotations SET status = 'sent', sent_at = COALESCE(sent_at, NOW()), updated_at = NOW()
      WHERE id = $1 AND company_id = $2 AND is_deleted = FALSE AND status IN ('draft','sent')
@@ -537,6 +563,8 @@ async function sendQuotation(req, res) {
 async function acceptQuotation(req, res) {
   const { id } = req.params;
   const company_id = req.user.company_id;
+  const denied = await quotationBranchAccessError(req, id);
+  if (denied) return res.status(denied.status).json({ error: denied.error });
   const { rows } = await query(
     `UPDATE quotations SET status = 'accepted', updated_at = NOW()
      WHERE id = $1 AND company_id = $2 AND is_deleted = FALSE AND status = 'sent'
@@ -551,6 +579,8 @@ async function acceptQuotation(req, res) {
 async function rejectQuotation(req, res) {
   const { id } = req.params;
   const company_id = req.user.company_id;
+  const denied = await quotationBranchAccessError(req, id);
+  if (denied) return res.status(denied.status).json({ error: denied.error });
   const { rows } = await query(
     `UPDATE quotations SET status = 'rejected', updated_at = NOW()
      WHERE id = $1 AND company_id = $2 AND is_deleted = FALSE AND status IN ('sent','draft')
@@ -580,6 +610,8 @@ async function duplicateQuotation(req, res) {
   const { id } = req.params;
   const company_id = req.user.company_id;
   const user_id = req.user.id;
+  const denied = await quotationBranchAccessError(req, id);
+  if (denied) return res.status(denied.status).json({ error: denied.error });
   const bundle = await loadQuotationBundle(id, company_id);
   if (!bundle) return res.status(404).json({ error: 'Quotation not found' });
 
@@ -658,6 +690,8 @@ async function convertToInvoice(req, res) {
   const { id } = req.params;
   const company_id = req.user.company_id;
   const user_id = req.user.id;
+  const denied = await quotationBranchAccessError(req, id);
+  if (denied) return res.status(denied.status).json({ error: denied.error });
 
   const bundle = await loadQuotationBundle(id, company_id);
   if (!bundle) return res.status(404).json({ error: 'Quotation not found' });
@@ -751,6 +785,8 @@ async function convertToInvoice(req, res) {
 
 async function getQuotationPdf(req, res) {
   try {
+    const denied = await quotationBranchAccessError(req, req.params.id);
+    if (denied) return res.status(denied.status).json({ error: denied.error });
     const bundle = await loadQuotationBundle(req.params.id, req.user.company_id);
     if (!bundle) return res.status(404).json({ error: 'Quotation not found' });
     const html = buildQuotationHtml(bundle);
@@ -772,6 +808,8 @@ async function getQuotationPdf(req, res) {
 
 async function getQuotationPreviewHtml(req, res) {
   try {
+    const denied = await quotationBranchAccessError(req, req.params.id);
+    if (denied) return res.status(denied.status).json({ error: denied.error });
     const bundle = await loadQuotationBundle(req.params.id, req.user.company_id);
     if (!bundle) return res.status(404).json({ error: 'Quotation not found' });
     const html = buildQuotationHtml(bundle);

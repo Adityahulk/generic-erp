@@ -330,13 +330,21 @@ async function report(req, res) {
       conditions.push(`u.role = ANY($${idx++})`);
       params.push(allowedRoles);
 
+      if (callerRole === 'branch_manager') {
+        const myB = req.user.branch_id;
+        if (!myB) {
+          return res.status(400).json({ error: 'No branch assigned' });
+        }
+        conditions.push(`u.branch_id = $${idx++}`);
+        params.push(myB);
+      } else if (branch_id) {
+        conditions.push(`a.branch_id = $${idx++}`);
+        params.push(branch_id);
+      }
+
       if (user_id) {
         conditions.push(`a.user_id = $${idx++}`);
         params.push(user_id);
-      }
-      if (branch_id) {
-        conditions.push(`a.branch_id = $${idx++}`);
-        params.push(branch_id);
       }
     }
 

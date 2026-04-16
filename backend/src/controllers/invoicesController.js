@@ -1,4 +1,21 @@
 const { query, getClient } = require('../config/db');
+
+/** @returns {Promise<{ status: number, error: string } | null>} null if allowed */
+async function invoiceBranchAccessError(req, invoiceId) {
+  const company_id = req.user.company_id;
+  const { role, branch_id: userBranch } = req.user;
+  if (role !== 'staff' && role !== 'branch_manager') return null;
+
+  const { rows } = await query(
+    `SELECT branch_id FROM invoices WHERE id = $1 AND company_id = $2 AND is_deleted = FALSE`,
+    [invoiceId, company_id],
+  );
+  if (!rows.length) return { status: 404, error: 'Invoice not found' };
+  if (String(rows[0].branch_id || '') !== String(userBranch || '')) {
+    return { status: 403, error: 'Not allowed for this branch' };
+  }
+  return null;
+}
 const { isInterstate, calculateGst, getGstRateForHsn } = require('../services/gstService');
 const { logAudit } = require('../middleware/auditLog');
 const { insertLoanForInvoiceInTransaction } = require('./loansController');
@@ -280,6 +297,8 @@ async function listInvoices(req, res) {
 async function getInvoice(req, res) {
   const { id } = req.params;
   const company_id = req.user.company_id;
+  const denied = await invoiceBranchAccessError(req, id);
+  if (denied) return res.status(denied.status).json({ error: denied.error });
   const result = await fetchFullInvoice(id, company_id);
   if (!result) return res.status(404).json({ error: 'Invoice not found' });
   res.json(result);
@@ -288,6 +307,8 @@ async function getInvoice(req, res) {
 async function cancelInvoice(req, res) {
   const { id } = req.params;
   const company_id = req.user.company_id;
+  const denied = await invoiceBranchAccessError(req, id);
+  if (denied) return res.status(denied.status).json({ error: denied.error });
 
   const client = await getClient();
   try {
@@ -337,6 +358,8 @@ async function cancelInvoice(req, res) {
 async function confirmInvoice(req, res) {
   const { id } = req.params;
   const company_id = req.user.company_id;
+  const denied = await invoiceBranchAccessError(req, id);
+  if (denied) return res.status(denied.status).json({ error: denied.error });
 
   const client = await getClient();
   try {
@@ -440,4 +463,5 @@ module.exports = {
   cancelInvoice,
   confirmInvoice,
   fetchFullInvoice,
+  invoiceBranchAccessError,
 };

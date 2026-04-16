@@ -184,12 +184,44 @@ async function getLoan(req, res) {
     return res.status(404).json({ error: 'Loan not found' });
   }
 
+  const { role, branch_id: userBranch } = req.user;
+  if (role === 'staff' || role === 'branch_manager') {
+    const invBranch = rows[0].invoice_id
+      ? (await query(
+        `SELECT branch_id FROM invoices WHERE id = $1 AND company_id = $2`,
+        [rows[0].invoice_id, company_id],
+      )).rows[0]?.branch_id
+      : null;
+    if (String(invBranch || '') !== String(userBranch || '')) {
+      return res.status(403).json({ error: 'Not allowed for this branch' });
+    }
+  }
+
   res.json({ loan: rows[0] });
 }
 
 async function closeLoan(req, res) {
   const { id } = req.params;
   const company_id = req.user.company_id;
+  const { role, branch_id: userBranch } = req.user;
+
+  const { rows: loanRows } = await query(
+    `SELECT l.id, l.invoice_id FROM loans l
+     WHERE l.id = $1 AND l.company_id = $2 AND l.is_deleted = FALSE AND l.status != 'closed'`,
+    [id, company_id],
+  );
+  if (!loanRows.length) {
+    return res.status(404).json({ error: 'Loan not found or already closed' });
+  }
+  if (role === 'staff' || role === 'branch_manager') {
+    const { rows: invR } = await query(
+      `SELECT branch_id FROM invoices WHERE id = $1 AND company_id = $2`,
+      [loanRows[0].invoice_id, company_id],
+    );
+    if (String(invR[0]?.branch_id || '') !== String(userBranch || '')) {
+      return res.status(403).json({ error: 'Not allowed for this branch' });
+    }
+  }
 
   const { rows } = await query(
     `UPDATE loans SET status = 'closed'
@@ -197,10 +229,6 @@ async function closeLoan(req, res) {
      RETURNING *`,
     [id, company_id],
   );
-
-  if (rows.length === 0) {
-    return res.status(404).json({ error: 'Loan not found or already closed' });
-  }
 
   logAudit({ companyId: company_id, userId: req.user.id, action: 'update', entity: 'loan', entityId: id, oldValue: { status: 'active' }, newValue: { status: 'closed' }, req });
   res.json({ loan: rows[0] });
