@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import api from '@/lib/api';
+import useTerms from '@/hooks/useTerms';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
 import { FileSpreadsheet, TrendingUp, Package, Download, Loader2, Zap } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -258,6 +259,7 @@ function GSTR1Section({ title, data: section, fmtPaise }) {
 // ────────────────────────── Sales Summary Tab ──────────────────────────
 
 function SalesSummaryTab() {
+  const terms = useTerms();
   const now = new Date();
   const firstDay = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
   const today = now.toISOString().split('T')[0];
@@ -318,12 +320,13 @@ function SalesSummaryTab() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card>
-              <CardHeader><CardTitle className="text-sm">Top Selling Vehicles</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-sm">Top Selling {terms.Items}</CardTitle></CardHeader>
               <CardContent>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border">
-                      <th className="text-left py-1.5 font-medium text-muted-foreground">Vehicle</th>
+                      <th className="text-left py-1.5 font-medium text-muted-foreground">{terms.Item}</th>
+                      <th className="text-left py-1.5 font-medium text-muted-foreground">Category</th>
                       <th className="text-right py-1.5 font-medium text-muted-foreground">Sold</th>
                       <th className="text-right py-1.5 font-medium text-muted-foreground">Revenue</th>
                     </tr>
@@ -331,13 +334,14 @@ function SalesSummaryTab() {
                   <tbody>
                     {(data.top_vehicles || []).map((v, i) => (
                       <tr key={i} className="border-b border-border/50">
-                        <td className="py-1.5">{v.make} {v.model} {v.variant || ''}</td>
+                        <td className="py-1.5">{v.item_name}</td>
+                        <td className="py-1.5">{v.category || '—'}</td>
                         <td className="py-1.5 text-right">{v.sold_count}</td>
                         <td className="py-1.5 text-right">{formatCurrency(Number(v.revenue))}</td>
                       </tr>
                     ))}
                     {(data.top_vehicles || []).length === 0 && (
-                      <tr><td colSpan={3} className="py-4 text-center text-muted-foreground">No data</td></tr>
+                      <tr><td colSpan={4} className="py-4 text-center text-muted-foreground">No data</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -421,6 +425,7 @@ const AGING_COLORS = {
 };
 
 function StockAgingTab() {
+  const terms = useTerms();
   const { data, isLoading } = useQuery({
     queryKey: ['stock-aging'],
     queryFn: () => api.get('/reports/stock-aging').then((r) => r.data),
@@ -461,7 +466,7 @@ function StockAgingTab() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 {range} Days
-                <Badge variant={colors.badge}>{vehicles.length} vehicles</Badge>
+                <Badge variant={colors.badge}>{vehicles.length} {terms.items.toLowerCase()}</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -469,9 +474,9 @@ function StockAgingTab() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border">
-                      <th className="text-left py-1.5 font-medium text-muted-foreground">Chassis</th>
-                      <th className="text-left py-1.5 font-medium text-muted-foreground">Vehicle</th>
-                      <th className="text-left py-1.5 font-medium text-muted-foreground">Color</th>
+                      <th className="text-left py-1.5 font-medium text-muted-foreground">SKU</th>
+                      <th className="text-left py-1.5 font-medium text-muted-foreground">{terms.Item}</th>
+                      <th className="text-left py-1.5 font-medium text-muted-foreground">Category</th>
                       <th className="text-left py-1.5 font-medium text-muted-foreground">Branch</th>
                       <th className="text-right py-1.5 font-medium text-muted-foreground">Purchase Price</th>
                       <th className="text-right py-1.5 font-medium text-muted-foreground">Selling Price</th>
@@ -481,9 +486,9 @@ function StockAgingTab() {
                   <tbody>
                     {vehicles.map((v) => (
                       <tr key={v.id} className={cn('border-b border-border/50', v.days_in_stock > 90 && 'bg-red-50/50')}>
-                        <td className="py-1.5 font-mono text-xs">{v.chassis_number}</td>
-                        <td className="py-1.5">{v.make} {v.model} {v.variant || ''}</td>
-                        <td className="py-1.5">{v.color || '—'}</td>
+                        <td className="py-1.5 font-mono text-xs">{v.sku || v.chassis_number || '—'}</td>
+                        <td className="py-1.5">{v.item_name || `${v.make || ''} ${v.model || ''} ${v.variant || ''}`.trim() || '—'}</td>
+                        <td className="py-1.5">{v.category || '—'}</td>
                         <td className="py-1.5">{v.branch_name || '—'}</td>
                         <td className="py-1.5 text-right">{formatCurrency(Number(v.purchase_price))}</td>
                         <td className="py-1.5 text-right">{formatCurrency(Number(v.selling_price))}</td>
@@ -504,6 +509,7 @@ function StockAgingTab() {
 // ────────────────────────── Main Reports Page ──────────────────────────
 
 export default function ReportsPage() {
+  const terms = useTerms();
   const [activeTab, setActiveTab] = useState('gstr1');
   const { isCA } = usePermissions();
 
@@ -515,7 +521,7 @@ export default function ReportsPage() {
             <h2 className="text-2xl font-semibold">Reports</h2>
             {isCA ? <ReadOnlyBadge /> : null}
           </div>
-          <p className="text-sm text-muted-foreground">GST filing, sales analytics, and inventory aging</p>
+          <p className="text-sm text-muted-foreground">GST filing, sales analytics, and {terms.items.toLowerCase()} aging</p>
         </div>
       </div>
 

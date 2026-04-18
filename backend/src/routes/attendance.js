@@ -20,10 +20,12 @@ const {
   leaveCancel,
   leaveListAll,
 } = require('../controllers/attendanceLeaveController');
+const { requireModule } = require('../middleware/moduleGuard');
 
 const router = Router();
 
 router.use(verifyToken);
+router.use(requireModule('attendance'));
 router.use(requireNotRole('ca'));
 
 router.post('/clockin', clockIn);

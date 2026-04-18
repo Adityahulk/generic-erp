@@ -59,6 +59,7 @@ app.use('/api/loans', require('./routes/loans'));
 app.use('/api/expenses', require('./routes/expenses'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/companies', require('./routes/companies'));
+app.use('/api/config', require('./routes/config'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/attendance', require('./routes/attendance'));
 app.use('/api/suppliers', require('./routes/suppliers'));
@@ -97,7 +98,7 @@ const PORT = Number(process.env.PORT) || 4000;
 // Bind all interfaces so other containers (e.g. nginx) can reach the API — required for Docker.
 const HOST = process.env.LISTEN_HOST || '0.0.0.0';
 app.listen(PORT, HOST, () => {
-  console.log(`Vehicle ERP API listening on http://${HOST}:${PORT}`);
+  console.log(`BizERP API listening on http://${HOST}:${PORT}`);
   require('./worker.js');
 });
 

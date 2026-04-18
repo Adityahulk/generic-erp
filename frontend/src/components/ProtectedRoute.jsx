@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import useAuthStore from '@/store/authStore';
+import useConfigStore from '@/store/configStore';
 
 export default function ProtectedRoute({ allowedRoles }) {
   const { isAuthenticated, user, fetchUser } = useAuthStore();
+  const loadConfig = useConfigStore((s) => s.loadConfig);
   const [loading, setLoading] = useState(!user && isAuthenticated);
 
   useEffect(() => {
@@ -12,6 +14,12 @@ export default function ProtectedRoute({ allowedRoles }) {
       fetchUser().finally(() => setLoading(false));
     }
   }, [isAuthenticated, user, fetchUser]);
+
+  useEffect(() => {
+    if (isAuthenticated && user?.company_id && user.role !== 'ca') {
+      loadConfig();
+    }
+  }, [isAuthenticated, user?.company_id, user?.role, loadConfig]);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

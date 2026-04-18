@@ -14,6 +14,7 @@ import {
 import QuotationPreviewModal from '@/components/QuotationPreviewModal';
 import api from '@/lib/api';
 import useAuthStore from '@/store/authStore';
+import useTerms from '@/hooks/useTerms';
 import { usePermissions } from '@/hooks/usePermissions';
 import ReadOnlyBadge from '@/components/ReadOnlyBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -30,6 +31,7 @@ function waLink(phone, text) {
 }
 
 export default function QuotationDetailPage() {
+  const terms = useTerms();
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -113,8 +115,8 @@ export default function QuotationDetailPage() {
     onSuccess: (res) => {
       const d = res.data;
       if (d?.requiresVehicleSelection) {
-        toast.info('Select an in-stock vehicle before converting.', {
-          description: 'Edit the quotation and link a stock vehicle, then convert again.',
+        toast.info(`Select an in-stock ${terms.item.toLowerCase()} before converting.`, {
+          description: `Edit the quotation and link a stock ${terms.item.toLowerCase()}, then convert again.`,
         });
         navigate(`/quotations/${id}/edit`);
         return;
@@ -157,10 +159,10 @@ export default function QuotationDetailPage() {
   const custName = customer?.name || q?.customer_name_override || '—';
   const custPhone = customer?.phone || q?.customer_phone_override || '';
   const makeModel = vehicle
-    ? `${vehicle.make || ''} ${vehicle.model || ''} ${vehicle.variant || ''}`.trim()
-    : [vo.make, vo.model, vo.variant].filter(Boolean).join(' ');
+    ? (vehicle.item_name || `${vehicle.make || ''} ${vehicle.model || ''} ${vehicle.variant || ''}`.trim())
+    : [vo.item_name, vo.make, vo.model, vo.variant].filter(Boolean).join(' ');
 
-  const waMessage = `Dear ${custName}, please find your quotation for ${makeModel || 'your vehicle'} from ${company?.name || 'us'}.
+  const waMessage = `Dear ${custName}, please find your quotation for ${makeModel || `your ${terms.item.toLowerCase()}`} from ${company?.name || 'us'}.
 Quotation No: ${q?.quotation_number} | Total: ${formatCurrency(q?.total)} | Valid till: ${formatDate(q?.valid_until_date)}.
 View here: ${shareUrl || '(generate share link)'}
 For queries call: ${branch?.phone || company?.phone || ''}`;
@@ -258,15 +260,15 @@ For queries call: ${branch?.phone || company?.phone || ''}`;
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle className="text-base">Vehicle</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">{terms.Item}</CardTitle></CardHeader>
             <CardContent className="text-sm space-y-1">
               {vehicle ? (
                 <>
-                  <p>{vehicle.make} {vehicle.model} {vehicle.variant}</p>
-                  <p className="text-muted-foreground">Chassis: {vehicle.chassis_number}</p>
+                  <p>{vehicle.item_name || `${vehicle.make || ''} ${vehicle.model || ''} ${vehicle.variant || ''}`.trim()}</p>
+                  <p className="text-muted-foreground">{vehicle.sku || vehicle.chassis_number || 'No code'}</p>
                 </>
               ) : (
-                <p>{makeModel || '—'} {vo.color ? `· ${vo.color}` : ''} {vo.year ? `· ${vo.year}` : ''}</p>
+                <p>{makeModel || '—'} {vo.brand ? `· ${vo.brand}` : ''} {vo.category ? `· ${vo.category}` : ''}</p>
               )}
             </CardContent>
           </Card>

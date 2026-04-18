@@ -1,6 +1,6 @@
-# Vehicle ERP
+# BizERP
 
-Full-stack ERP system for Indian vehicle distribution businesses. Manage inventory, sales, invoicing (with GST), loans, expenses, attendance, and reporting across multiple branches.
+Full-stack ERP system for Indian MSME businesses. Manage inventory, sales, invoicing (with GST), purchases, expenses, attendance, loans, and reporting across multiple branches without locking the business into a single industry.
 
 ## Tech Stack
 
@@ -93,7 +93,9 @@ Open http://localhost:5173 and log in:
 
 | Email | Password | Role |
 |-------|----------|------|
-| admin@demo.com | Demo@1234 | Company Admin |
+| admin@demo.com | Demo@1234 | Vehicle business demo admin |
+| trading@demo.com | Demo@1234 | Trading business demo admin |
+| super@erp.com | SuperAdmin@1234 | Super Admin |
 | manager1@demo.com | Demo@1234 | Branch Manager (Mapusa) |
 | manager2@demo.com | Demo@1234 | Branch Manager (Panaji) |
 | staff1@demo.com | Demo@1234 | Staff (Mapusa) |

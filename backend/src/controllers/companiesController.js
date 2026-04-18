@@ -1,4 +1,5 @@
 const { query } = require('../config/db');
+const { invalidateConfigCache } = require('../services/businessConfigService');
 const { seedDefaultInvoiceTemplates } = require('./invoiceTemplateController');
 const { seedDefaultLeaveTypes } = require('../services/leaveTypesService');
 const { seedWhatsappTemplates } = require('../services/whatsappTemplatesSeed');
@@ -15,6 +16,8 @@ async function getCompany(req, res) {
     const { rows } = await query(
       `SELECT id, name, gstin, address, phone, email, logo_url, signature_url,
               state_code, default_hsn_code, default_gst_rate,
+              item_terminology, item_terminology_plural, onboarding_completed, invoice_defaults,
+              business_type, business_config,
               created_at, updated_at
        FROM companies WHERE id = $1 AND is_deleted = FALSE`,
       [id],
@@ -43,6 +46,8 @@ async function updateCompany(req, res) {
     const allowed = [
       'name', 'gstin', 'address', 'phone', 'email',
       'state_code', 'default_hsn_code', 'default_gst_rate',
+      'item_terminology', 'item_terminology_plural', 'onboarding_completed', 'invoice_defaults',
+      'business_type', 'business_config',
     ];
 
     const setClauses = [];
@@ -62,15 +67,22 @@ async function updateCompany(req, res) {
 
     params.push(id);
     const { rows } = await query(
-      `UPDATE companies SET ${setClauses.join(', ')}
+       `UPDATE companies SET ${setClauses.join(', ')}
        WHERE id = $${idx} AND is_deleted = FALSE
        RETURNING id, name, gstin, address, phone, email, logo_url, signature_url,
-                 state_code, default_hsn_code, default_gst_rate, created_at, updated_at`,
+                 state_code, default_hsn_code, default_gst_rate,
+                 item_terminology, item_terminology_plural, onboarding_completed, invoice_defaults,
+                 business_type, business_config,
+                 created_at, updated_at`,
       params,
     );
 
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Company not found' });
+    }
+
+    if (req.body.business_type !== undefined || req.body.business_config !== undefined) {
+      await invalidateConfigCache(id);
     }
 
     res.json({ company: rows[0] });
@@ -147,9 +159,9 @@ async function createCompany(req, res) {
     const { name, gstin, address, phone, email } = req.body;
 
     const { rows } = await query(
-      `INSERT INTO companies (name, gstin, address, phone, email)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, name, gstin, address, phone, email, created_at`,
+      `INSERT INTO companies (name, gstin, address, phone, email, item_terminology, item_terminology_plural, onboarding_completed)
+       VALUES ($1, $2, $3, $4, $5, 'Product', 'Products', FALSE)
+       RETURNING id, name, gstin, address, phone, email, item_terminology, item_terminology_plural, onboarding_completed, created_at`,
       [name, gstin || null, address || null, phone || null, email || null],
     );
 

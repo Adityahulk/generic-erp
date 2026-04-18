@@ -433,7 +433,8 @@ async function listQuotations(req, res) {
     `SELECT q.*,
             COALESCE(c.name, q.customer_name_override) AS customer_display_name,
             COALESCE(c.phone, q.customer_phone_override) AS customer_display_phone,
-            v.make AS vehicle_make, v.model AS vehicle_model, v.chassis_number,
+            COALESCE(v.item_name, CONCAT_WS(' ', v.make, v.model, v.variant)) AS item_name,
+            COALESCE(v.sku, v.chassis_number) AS sku,
             b.name AS branch_name
      FROM quotations q
      LEFT JOIN customers c ON c.id = q.customer_id
@@ -685,6 +686,7 @@ async function convertToInvoice(req, res) {
       : Number(it.cgst_rate) + Number(it.sgst_rate);
     return {
       description: it.description,
+      vehicle_id: it.vehicle_id || undefined,
       hsn_code: it.hsn_code || '8703',
       quantity: qty,
       unit_price: effUnit,

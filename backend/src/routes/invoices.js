@@ -30,6 +30,7 @@ const customerSchema = z.object({
 
 const itemSchema = z.object({
   description: z.string().min(1, 'Item description required'),
+  vehicle_id: z.string().uuid().optional(),
   hsn_code: z.string().max(20).optional(),
   quantity: z.number().int().min(1).optional().default(1),
   unit_price: z.number().int().min(0, 'Unit price in paise'),

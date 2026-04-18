@@ -3,6 +3,8 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import useAuthStore from '@/store/authStore';
+import useConfigStore from '@/store/configStore';
+import useTerms from '@/hooks/useTerms';
 import { Car, LogOut, Search, X, Loader2, Menu, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
@@ -74,6 +76,7 @@ function DesktopNavMore({ items }) {
 }
 
 function GlobalSearch() {
+  const terms = useTerms();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -147,7 +150,7 @@ function GlobalSearch() {
         onClick={() => setOpen(true)}
       >
         <Search className="h-3.5 w-3.5" />
-        <span className="text-xs flex-1 text-left">Search vehicles...</span>
+        <span className="text-xs flex-1 text-left">Search {terms.items.toLowerCase()}...</span>
         <kbd className="pointer-events-none h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 hidden sm:inline-flex">
           ⌘K
         </kbd>
@@ -164,7 +167,7 @@ function GlobalSearch() {
             ref={inputRef}
             value={query}
             onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Search chassis, model, engine..."
+            placeholder="Search name, SKU, brand, category..."
             className="w-72 pl-8 h-9 text-sm"
           />
         </div>
@@ -189,10 +192,10 @@ function GlobalSearch() {
               <Car className="h-4 w-4 text-muted-foreground shrink-0" />
               <div className="min-w-0">
                 <p className="text-sm font-medium truncate">
-                  {[v.make, v.model, v.variant].filter(Boolean).join(' ') || 'Unknown'}
+                  {v.item_name || [v.make, v.model, v.variant].filter(Boolean).join(' ') || 'Untitled item'}
                 </p>
                 <p className="text-xs text-muted-foreground font-mono truncate">
-                  {v.chassis_number}
+                  {v.sku || v.chassis_number || 'No code'}
                 </p>
               </div>
               <span className={cn(
@@ -207,7 +210,7 @@ function GlobalSearch() {
           ))}
           {!loading && query.length >= 2 && results.length === 0 && (
             <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-              No vehicles found
+              {terms.noItems}
             </div>
           )}
         </div>
@@ -217,7 +220,9 @@ function GlobalSearch() {
 }
 
 function MobileDrawer({ open, onClose, user, onLogout }) {
-  const filteredItems = navItemsForRole(user?.role);
+  const company = useAuthStore((s) => s.company);
+  const modules = useConfigStore((s) => s.modules);
+  const filteredItems = navItemsForRole(user?.role, modules);
 
   useEffect(() => {
     if (open) document.body.style.overflow = 'hidden';
@@ -233,8 +238,8 @@ function MobileDrawer({ open, onClose, user, onLogout }) {
       <div className="fixed inset-y-0 left-0 z-50 w-72 bg-card border-r border-border shadow-xl flex flex-col animate-in slide-in-from-left duration-200">
         <div className="flex items-center justify-between px-4 py-4 border-b border-border">
           <div className="flex items-center gap-2">
-            <img src="/assets/mvg-logo.png" alt="MVG" className="h-8 object-contain" />
-            <span className="text-lg font-bold">MVG ERP</span>
+            <img src="/assets/mvg-logo.png" alt="BizERP" className="h-8 object-contain" />
+            <span className="text-lg font-bold">{company?.name ? `${company.name} ERP` : 'BizERP'}</span>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-5 w-5" />
@@ -287,6 +292,7 @@ function MobileDrawer({ open, onClose, user, onLogout }) {
 
 export default function AppLayout({ children }) {
   const { user, logout } = useAuthStore();
+  const modules = useConfigStore((s) => s.modules);
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const showGlobalSearch = !['staff', 'ca'].includes(user?.role);
@@ -310,15 +316,15 @@ export default function AppLayout({ children }) {
             <Menu className="h-5 w-5" />
           </Button>
           <div className="flex items-center gap-2 shrink-0">
-            <img src="/assets/mvg-logo.png" alt="MVG" className="h-8 object-contain" />
-            <span className="text-lg font-bold hidden sm:inline">MVG ERP</span>
+            <img src="/assets/mvg-logo.png" alt="BizERP" className="h-8 object-contain" />
+            <span className="text-lg font-bold hidden sm:inline">BizERP</span>
           </div>
           <nav
             className="hidden md:flex items-center gap-1 min-w-0 flex-1"
             aria-label="Main navigation"
           >
             {(() => {
-              const { primary, overflow } = splitNavForDesktopBar(user?.role);
+              const { primary, overflow } = splitNavForDesktopBar(user?.role, modules);
               return (
                 <>
                   <div className="flex items-center gap-0.5 flex-nowrap min-w-0 flex-1 overflow-x-auto overflow-y-visible py-1 -my-1 [scrollbar-width:thin]">

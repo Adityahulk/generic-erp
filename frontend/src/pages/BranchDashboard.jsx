@@ -113,7 +113,7 @@ export default function BranchDashboard() {
           <Plus className="h-4 w-4" /> New Sale
         </Button>
         <Button variant="outline" onClick={() => navigate('/inventory')} className="gap-2">
-          <Car className="h-4 w-4" /> Add Vehicle
+          <Car className="h-4 w-4" /> Add Product
         </Button>
         <Button variant="outline" onClick={() => navigate('/expenses')} className="gap-2">
           <Receipt className="h-4 w-4" /> Add Expense

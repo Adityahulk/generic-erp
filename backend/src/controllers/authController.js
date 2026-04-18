@@ -40,8 +40,12 @@ async function login(req, res) {
 
   const { rows } = await query(
     `SELECT u.id, u.company_id, u.branch_id, u.name, u.email, u.password_hash,
-            u.role, u.phone, u.is_active
+            u.role, u.phone, u.is_active,
+            c.name AS company_name, c.item_terminology, c.item_terminology_plural,
+            c.onboarding_completed, c.default_hsn_code, c.default_gst_rate,
+            c.business_type, c.business_config
      FROM users u
+     LEFT JOIN companies c ON c.id = u.company_id
      WHERE u.email = $1 AND u.is_deleted = FALSE
      LIMIT 1`,
     [email],
@@ -83,6 +87,23 @@ async function login(req, res) {
       role: user.role,
       company_id: user.company_id,
       branch_id: user.branch_id,
+      company_name: user.company_name,
+      item_terminology: user.item_terminology,
+      item_terminology_plural: user.item_terminology_plural,
+      onboarding_completed: user.onboarding_completed,
+      default_hsn_code: user.default_hsn_code,
+      default_gst_rate: user.default_gst_rate,
+    },
+    company: {
+      id: user.company_id,
+      name: user.company_name,
+      item_terminology: user.item_terminology,
+      item_terminology_plural: user.item_terminology_plural,
+      onboarding_completed: user.onboarding_completed,
+      default_hsn_code: user.default_hsn_code,
+      default_gst_rate: user.default_gst_rate,
+      business_type: user.business_type,
+      business_config: user.business_config,
     },
   });
 }
@@ -144,6 +165,9 @@ async function me(req, res) {
     `SELECT u.id, u.name, u.email, u.phone, u.role, u.company_id, u.branch_id,
             u.is_active, u.created_at,
             c.name AS company_name, c.gstin AS company_gstin,
+            c.item_terminology, c.item_terminology_plural,
+            c.default_hsn_code, c.default_gst_rate, c.onboarding_completed,
+            c.business_type, c.business_config,
             b.name AS branch_name
      FROM users u
      LEFT JOIN companies c ON c.id = u.company_id
@@ -156,7 +180,21 @@ async function me(req, res) {
     return res.status(404).json({ error: 'User not found' });
   }
 
-  res.json({ user: rows[0] });
+  res.json({
+    user: rows[0],
+    company: {
+      id: rows[0].company_id,
+      name: rows[0].company_name,
+      gstin: rows[0].company_gstin,
+      item_terminology: rows[0].item_terminology,
+      item_terminology_plural: rows[0].item_terminology_plural,
+      default_hsn_code: rows[0].default_hsn_code,
+      default_gst_rate: rows[0].default_gst_rate,
+      onboarding_completed: rows[0].onboarding_completed,
+      business_type: rows[0].business_type,
+      business_config: rows[0].business_config,
+    },
+  });
 }
 
 module.exports = { login, refresh, logout, me };

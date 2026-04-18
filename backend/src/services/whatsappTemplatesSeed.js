@@ -7,7 +7,7 @@ const TEMPLATES = [
     message_type: 'loan_overdue',
     template_body: `Dear {customer_name},
 
-Your vehicle loan for {vehicle} is overdue.
+Your loan for {item_name} is overdue.
 
 Due Date: {due_date}
 Overdue By: {overdue_days} days
@@ -26,7 +26,7 @@ Please contact us immediately to avoid further charges.
 Thank you for your purchase from {company_name}!
 
 Invoice No: {invoice_number}
-Vehicle: {vehicle}
+Items: {item_summary}
 Amount: ₹{amount}
 
 View/Download your invoice: {share_link}
@@ -43,7 +43,7 @@ For any queries, call us at {branch_phone}
 Please find your quotation from {company_name}.
 
 Quotation No: {quotation_number}
-Vehicle: {vehicle}
+For: {item_summary}
 Total: ₹{amount}
 Valid Until: {valid_until}
 
@@ -59,7 +59,7 @@ To confirm your booking or for queries:
     message_type: 'loan_penalty_alert',
     template_body: `Dear {customer_name},
 
-This is a reminder that your loan payment for {vehicle} is pending.
+This is a reminder that your loan payment for {item_name} is pending.
 
 Due Date: {due_date}
 Days Overdue: {overdue_days}
@@ -76,7 +76,7 @@ Please clear your dues to stop penalty accumulation.
     message_type: 'loan_due_soon',
     template_body: `Dear {customer_name},
 
-This is a friendly reminder that your upcoming loan payment for {vehicle} is due next week.
+This is a friendly reminder that your upcoming loan payment for {item_name} is due next week.
 
 Due Date: {due_date}
 

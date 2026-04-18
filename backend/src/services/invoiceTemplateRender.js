@@ -179,17 +179,28 @@ function buildStandardInvoiceHtml({ invoice: inv, items }, templateRow) {
     ? `<img src="${logo}" alt="Logo" style="max-height:52px;margin-bottom:8px;display:block;" />`
     : '';
 
-  const vehicleInner = (L.show_vehicle_details_block !== false) && inv.chassis_number
-    ? `<div class="party"><h4>Vehicle Details</h4>
-        <p>${esc([inv.vehicle_make, inv.vehicle_model, inv.vehicle_variant].filter(Boolean).join(' '))}</p>
-        <p>Chassis: ${esc(inv.chassis_number)}</p>
-        <p>Engine: ${esc(inv.engine_number || '—')}</p>
-        <p>Color: ${esc(inv.vehicle_color || '—')} · Year: ${esc(inv.vehicle_year || '—')}</p>
-       </div>`
+  const itemDetails = items
+    .filter((item) => item.item_name || item.sku || (item.custom_fields && Object.keys(item.custom_fields).length))
+    .map((item) => {
+      const details = item.custom_fields && typeof item.custom_fields === 'object'
+        ? Object.entries(item.custom_fields)
+          .filter(([, value]) => value !== null && value !== undefined && value !== '')
+          .map(([key, value]) => `${esc(key.replace(/_/g, ' '))}: ${esc(value)}`)
+          .join(' · ')
+        : '';
+      return `<div style="margin-bottom:8px">
+        <p><strong>${esc(item.item_name || item.description)}</strong></p>
+        ${item.sku ? `<p style="font-family:monospace;color:#475569">${esc(item.sku)}</p>` : ''}
+        ${details ? `<p>${details}</p>` : ''}
+      </div>`;
+    }).join('');
+
+  const vehicleInner = (L.show_vehicle_details_block !== false) && itemDetails
+    ? `<div class="party"><h4>Item Details</h4>${itemDetails}</div>`
     : '<div></div>';
 
-  const vehicleSimple = (L.show_vehicle_details_block !== false) && inv.chassis_number
-    ? `<div class="sub"><strong>Vehicle:</strong> ${esc([inv.vehicle_make, inv.vehicle_model].filter(Boolean).join(' '))} · Chassis ${esc(inv.chassis_number)}</div>`
+  const vehicleSimple = (L.show_vehicle_details_block !== false) && itemDetails
+    ? `<div class="sub"><strong>Item Details:</strong> ${esc(items[0]?.item_name || items[0]?.description || 'Item')}</div>`
     : '';
 
   let itemsHead;

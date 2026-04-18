@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import api from '@/lib/api';
 import { usePermissions } from '@/hooks/usePermissions';
+import useTerms from '@/hooks/useTerms';
 import ReadOnlyBadge from '@/components/ReadOnlyBadge';
 
 const INV_STATUS_BADGE = {
@@ -57,9 +58,10 @@ function useCustomerSearch(search) {
 // ─── New Sale Multi-Step Dialog ──────────────────────────────
 
 const EMPTY_CUSTOMER = { name: '', phone: '', email: '', address: '', gstin: '' };
-const EMPTY_LINE = { description: '', hsn_code: '8708', quantity: 1, unit_price_display: '', gst_rate: 28 };
+const EMPTY_LINE = { description: '', hsn_code: '', quantity: 1, unit_price_display: '', gst_rate: 18 };
 
 function NewSaleDialog({ open, onOpenChange }) {
+  const terms = useTerms();
   const [step, setStep] = useState(1);
   const [customerMode, setCustomerMode] = useState('search'); // search | new
   const [customerSearch, setCustSearch] = useState('');
@@ -85,23 +87,26 @@ function NewSaleDialog({ open, onOpenChange }) {
     }
   }, [open]);
 
-  // Auto-add vehicle as first line item when selected
+  // Auto-add selected inventory item as the first line item
   useEffect(() => {
     if (selectedVehicle && lineItems.length === 0) {
       setLineItems([{
-        description: `${selectedVehicle.make || ''} ${selectedVehicle.model || ''} ${selectedVehicle.variant || ''}`.trim() || 'Vehicle',
-        hsn_code: '8703',
+        description: selectedVehicle.item_name || `${selectedVehicle.make || ''} ${selectedVehicle.model || ''} ${selectedVehicle.variant || ''}`.trim() || terms.item,
+        vehicle_id: selectedVehicle.id,
+        hsn_code: selectedVehicle.hsn_code || '',
         quantity: 1,
         unit_price_display: (selectedVehicle.selling_price / 100).toString(),
-        gst_rate: 28,
+        gst_rate: Number(selectedVehicle.default_gst_rate || 18),
       }]);
     }
-  }, [selectedVehicle]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedVehicle, terms.item]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredVehicles = vehicles?.filter((v) => {
     if (!vehicleSearch) return true;
     const s = vehicleSearch.toLowerCase();
-    return v.chassis_number?.toLowerCase().includes(s)
+    return v.item_name?.toLowerCase().includes(s)
+      || v.sku?.toLowerCase().includes(s)
+      || v.category?.toLowerCase().includes(s)
       || v.make?.toLowerCase().includes(s)
       || v.model?.toLowerCase().includes(s);
   }) || [];
@@ -120,10 +125,11 @@ function NewSaleDialog({ open, onOpenChange }) {
     setError('');
     const items = lineItems.filter((l) => l.description && l.unit_price_display).map((l) => ({
       description: l.description,
-      hsn_code: l.hsn_code || '8703',
+      vehicle_id: l.vehicle_id || undefined,
+      hsn_code: l.hsn_code || '',
       quantity: l.quantity || 1,
       unit_price: Math.round(Number(l.unit_price_display) * 100),
-      gst_rate: Number(l.gst_rate) || 28,
+      gst_rate: Number(l.gst_rate) || 18,
     }));
 
     if (items.length === 0) {
@@ -182,8 +188,8 @@ function NewSaleDialog({ open, onOpenChange }) {
           <DialogTitle>New Sale — Step {step} of 4</DialogTitle>
           <DialogDescription>
             {step === 1 && 'Select or create a customer'}
-            {step === 2 && 'Select a vehicle (optional)'}
-            {step === 3 && 'Add line items (vehicle, accessories, insurance, RTO)'}
+            {step === 2 && `Select ${terms.items.toLowerCase()} (optional)`}
+            {step === 3 && 'Add line items'}
             {step === 4 && 'Review GST breakup and confirm'}
           </DialogDescription>
         </DialogHeader>
@@ -240,25 +246,25 @@ function NewSaleDialog({ open, onOpenChange }) {
           </div>
         )}
 
-        {/* Step 2: Vehicle */}
+        {/* Step 2: Item selection */}
         {step === 2 && (
           <div className="space-y-3">
-            <Input placeholder="Search chassis, make, model..." value={vehicleSearch} onChange={(e) => setVehicleSearch(e.target.value)} />
+            <Input placeholder="Search by name, SKU, or category..." value={vehicleSearch} onChange={(e) => setVehicleSearch(e.target.value)} />
             <div className="border rounded-md max-h-60 overflow-y-auto">
               <button type="button"
                 className={`w-full text-left px-3 py-2 text-sm hover:bg-accent border-b ${!selectedVehicle ? 'bg-primary/10' : ''}`}
                 onClick={() => setSelectedVehicle(null)}>
-                <span className="text-muted-foreground">No vehicle (service / accessories only)</span>
+                <span className="text-muted-foreground">No linked inventory item</span>
               </button>
               {filteredVehicles.map((v) => (
                 <button key={v.id} type="button"
                   className={`w-full text-left px-3 py-2 text-sm hover:bg-accent border-b flex justify-between ${selectedVehicle?.id === v.id ? 'bg-primary/10' : ''}`}
                   onClick={() => setSelectedVehicle(v)}>
-                  <span className="font-medium">{v.make} {v.model} {v.variant}</span>
-                  <span className="text-muted-foreground text-xs font-mono">{v.chassis_number} — {formatCurrency(v.selling_price)}</span>
+                  <span className="font-medium">{v.item_name || [v.make, v.model, v.variant].filter(Boolean).join(' ')}</span>
+                  <span className="text-muted-foreground text-xs font-mono">{v.sku || v.chassis_number || '—'} — {formatCurrency(v.selling_price)}</span>
                 </button>
               ))}
-              {filteredVehicles.length === 0 && <p className="px-3 py-4 text-sm text-muted-foreground text-center">No in-stock vehicles</p>}
+              {filteredVehicles.length === 0 && <p className="px-3 py-4 text-sm text-muted-foreground text-center">No inventory items found</p>}
             </div>
           </div>
         )}
@@ -270,7 +276,7 @@ function NewSaleDialog({ open, onOpenChange }) {
               <div key={idx} className="grid grid-cols-12 gap-2 items-end">
                 <div className="col-span-4 space-y-1">
                   <Label className="text-xs">Description</Label>
-                  <Input value={item.description} onChange={(e) => setField(idx, 'description', e.target.value)} placeholder="Vehicle / Insurance / RTO" />
+                  <Input value={item.description} onChange={(e) => setField(idx, 'description', e.target.value)} placeholder="Product / Service / Delivery / Other" />
                 </div>
                 <div className="col-span-2 space-y-1">
                   <Label className="text-xs">HSN</Label>
@@ -331,10 +337,10 @@ function NewSaleDialog({ open, onOpenChange }) {
 
             {selectedVehicle && (
               <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm">Vehicle</CardTitle></CardHeader>
+                <CardHeader className="pb-2"><CardTitle className="text-sm">Selected {terms.item}</CardTitle></CardHeader>
                 <CardContent className="text-sm">
-                  <p className="font-medium">{selectedVehicle.make} {selectedVehicle.model} {selectedVehicle.variant}</p>
-                  <p className="text-muted-foreground font-mono text-xs">Chassis: {selectedVehicle.chassis_number}</p>
+                  <p className="font-medium">{selectedVehicle.item_name || [selectedVehicle.make, selectedVehicle.model, selectedVehicle.variant].filter(Boolean).join(' ')}</p>
+                  <p className="text-muted-foreground font-mono text-xs">{selectedVehicle.sku || selectedVehicle.chassis_number || 'No code'}</p>
                 </CardContent>
               </Card>
             )}
@@ -412,6 +418,7 @@ function NewSaleDialog({ open, onOpenChange }) {
 // ─── Main Sales Page ─────────────────────────────────────────
 
 export default function SalesPage() {
+  const terms = useTerms();
   const queryClient = useQueryClient();
   const [saleOpen, setSaleOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -571,7 +578,7 @@ export default function SalesPage() {
               <TableHead>Invoice #</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Customer</TableHead>
-              <TableHead>Vehicle</TableHead>
+              <TableHead>{terms.Item}</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>e-Invoice</TableHead>
               <TableHead className="text-right">Total</TableHead>
@@ -599,8 +606,8 @@ export default function SalesPage() {
                     <div className="text-xs text-muted-foreground">{inv.customer_phone}</div>
                   </TableCell>
                   <TableCell>
-                    {inv.vehicle_make
-                      ? `${inv.vehicle_make} ${inv.vehicle_model}`
+                    {inv.item_name
+                      ? `${inv.item_name}${inv.sku ? ` · ${inv.sku}` : ''}`
                       : <span className="text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell>

@@ -88,8 +88,8 @@ function buildInvoiceHtml({ invoice, items }) {
       <p><strong>${inv.branch_name || ''}</strong></p>
       <p>${inv.branch_address || ''}</p>
       <p>${inv.branch_phone ? 'Phone: ' + inv.branch_phone : ''}</p>
-      ${inv.chassis_number ? `<p>Vehicle: ${inv.vehicle_make || ''} ${inv.vehicle_model || ''} ${inv.vehicle_variant || ''}</p>
-        <p>Chassis: ${inv.chassis_number} | Engine: ${inv.engine_number || ''}</p>` : ''}
+      ${inv.item_name || inv.sku ? `<p>Item: ${inv.item_name || [inv.vehicle_make, inv.vehicle_model, inv.vehicle_variant].filter(Boolean).join(' ')}</p>
+        ${inv.sku ? `<p>SKU: ${inv.sku}</p>` : ''}` : ''}
     </div>
   </div>
 

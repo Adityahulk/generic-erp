@@ -6,10 +6,11 @@ const { query, getClient } = require('../config/db');
 const { isInterstate, calculateGst, getGstRateForHsn } = require('../services/gstService');
 const {
   parseUploadedFile,
-  validateVehicleImportRow,
+  validateVehiclesImportRowFlexible,
   validateSaleImportRow,
   validatePurchaseImportRow,
   buildTemplateSheet,
+  buildVehicleImportTemplateSheet,
 } = require('../services/importService');
 const {
   generatePoNumber,
@@ -72,7 +73,7 @@ async function preview(req, res) {
     const displayRow = i + 2;
     let result;
     if (importType === 'vehicles') {
-      result = validateVehicleImportRow(row, i);
+      result = await validateVehiclesImportRowFlexible(row, i, company_id, query);
     } else if (importType === 'sales') {
       result = await validateSaleImportRow(row, i, query, company_id);
     } else {
@@ -168,7 +169,7 @@ async function confirmImport(req, res) {
     const displayRow = i + 2;
     let result;
     if (type === 'vehicles') {
-      result = validateVehicleImportRow(row, i);
+      result = await validateVehiclesImportRowFlexible(row, i, company_id, query);
     } else if (type === 'sales') {
       result = await validateSaleImportRow(row, i, query, company_id);
     } else {
@@ -183,29 +184,65 @@ async function confirmImport(req, res) {
   let imported = 0;
 
   if (type === 'vehicles') {
+      const { rows: compDef } = await query(
+        `SELECT default_hsn_code, default_gst_rate FROM companies WHERE id = $1 AND is_deleted = FALSE`,
+        [company_id],
+      );
+      const defHsn = compDef[0]?.default_hsn_code || '';
+      const defGst = Number(compDef[0]?.default_gst_rate ?? 18);
+
       for (const { displayRow, data } of toSave) {
         const cx = await getClient();
         try {
           await cx.query('BEGIN');
           const dup = await cx.query(
-            `SELECT id FROM vehicles WHERE chassis_number = $1 AND company_id = $2 AND is_deleted = FALSE`,
-            [data.chassis_number, company_id],
+            `SELECT id FROM vehicles
+             WHERE company_id = $1 AND is_deleted = FALSE
+               AND (sku = $2 OR chassis_number = $2)`,
+            [company_id, data.sku],
           );
           if (dup.rows.length > 0) {
             await cx.query('ROLLBACK');
-            skipErrors.push({ row: displayRow, reason: 'Duplicate chassis in database' });
+            skipErrors.push({ row: displayRow, reason: 'Duplicate SKU / code in database' });
             continue;
           }
+          const hsn = data.hsn_code || defHsn || '';
+          const gstRate = Number.isFinite(Number(data.default_gst_rate)) ? Number(data.default_gst_rate) : defGst;
+          const cf = JSON.stringify(data.custom_fields || {});
+
           await cx.query(
             `INSERT INTO vehicles
-               (company_id, branch_id, chassis_number, engine_number, make, model, variant, color, year,
-                purchase_price, selling_price, status, rto_number, rto_date, insurance_company, insurance_expiry, insurance_number)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'in_stock',$12,$13,$14,$15,$16)`,
+               (company_id, branch_id, item_name, sku, category, brand, unit_of_measure,
+                quantity_in_stock, is_serialized, hsn_code, default_gst_rate, custom_fields, notes,
+                chassis_number, engine_number, make, model, variant, color, year,
+                purchase_price, selling_price, status,
+                rto_number, rto_date, insurance_company, insurance_expiry, insurance_number)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,'in_stock',$23,$24,$25,$26,$27,$28)`,
             [
-              company_id, branchId, data.chassis_number, data.engine_number,
-              data.make, data.model, data.variant, data.color, data.year,
-              data.purchase_price, data.selling_price,
-              data.rto_number, data.rto_date, data.insurance_company, data.insurance_expiry, data.insurance_number,
+              company_id, branchId, data.item_name, data.sku,
+              data.custom_fields?.category || null,
+              data.custom_fields?.brand || data.make || null,
+              'Pcs',
+              data.quantity_in_stock ?? 1,
+              data.is_serialized !== false,
+              hsn,
+              gstRate,
+              cf,
+              null,
+              data.chassis_number,
+              data.engine_number,
+              data.make,
+              data.model,
+              data.variant,
+              data.color,
+              data.year,
+              data.purchase_price,
+              data.selling_price,
+              data.rto_number,
+              data.rto_date,
+              data.insurance_company,
+              data.insurance_expiry,
+              data.insurance_number,
             ],
           );
           await cx.query('COMMIT');
@@ -421,7 +458,7 @@ async function confirmImport(req, res) {
   });
 }
 
-function downloadTemplate(req, res) {
+async function downloadTemplate(req, res) {
   const { type } = req.params;
   if (type === 'quotations') {
     return res.status(400).json({ error: 'Quotation import template is not available yet.' });
@@ -429,7 +466,12 @@ function downloadTemplate(req, res) {
   if (!['vehicles', 'sales', 'purchases'].includes(type)) {
     return res.status(400).json({ error: 'Invalid template type' });
   }
-  const buf = buildTemplateSheet(type);
+  let buf;
+  if (type === 'vehicles') {
+    buf = await buildVehicleImportTemplateSheet(req.user.company_id, query);
+  } else {
+    buf = buildTemplateSheet(type);
+  }
   res.set({
     'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'Content-Disposition': `attachment; filename="${type}_import_template.xlsx"`,

@@ -63,7 +63,14 @@ function processItemsForPo(items, companyGstin, supplierGstin, discount, tcsAppl
       sgst_amount: gst.sgst_amount,
       igst_amount: gst.igst_amount,
       amount,
-      vehicle_data: item.vehicle_data && typeof item.vehicle_data === 'object' ? item.vehicle_data : null,
+      vehicle_data: {
+        ...(item.vehicle_data && typeof item.vehicle_data === 'object' ? item.vehicle_data : {}),
+        create_inventory_item: item.create_inventory_item !== false,
+        is_serialized: item.is_serialized !== undefined ? item.is_serialized : true,
+        sku: item.sku || null,
+        item_name: item.item_name || item.description,
+        unit_of_measure: item.unit_of_measure || 'Pcs',
+      },
     });
     subtotal += lineTotal;
     totalCgst += gst.cgst_amount;
@@ -446,23 +453,31 @@ async function receivePurchase(req, res) {
     );
     const itemById = new Map(poItems.map((r) => [r.id, r]));
 
-    const chassisSet = new Set();
+    const skuSet = new Set();
     for (const line of items) {
       const vd = line.vehicle_data;
-      if (vd && vd.chassis_number) {
-        const ch = String(vd.chassis_number).trim();
-        if (chassisSet.has(ch)) {
+      const itemName = vd?.item_name || line.item_name || vd?.make || '';
+      const sku = String(vd?.sku || line.sku || vd?.chassis_number || '').trim();
+      if (!itemName && (vd || line.is_serialized !== undefined)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'item_name is required for inventory receipts' });
+      }
+      if (sku) {
+        if (skuSet.has(sku)) {
           await client.query('ROLLBACK');
-          return res.status(400).json({ error: `Duplicate chassis in request: ${ch}` });
+          return res.status(400).json({ error: `Duplicate SKU in request: ${sku}` });
         }
-        chassisSet.add(ch);
-        const { rows: dup } = await client.query(
-          `SELECT id FROM vehicles WHERE chassis_number = $1 AND company_id = $2 AND is_deleted = FALSE`,
-          [ch, company_id],
-        );
-        if (dup.length > 0) {
-          await client.query('ROLLBACK');
-          return res.status(409).json({ error: `Chassis already exists: ${ch}` });
+        skuSet.add(sku);
+        const serialized = vd?.is_serialized ?? line.is_serialized ?? true;
+        if (serialized) {
+          const { rows: dup } = await client.query(
+            `SELECT id FROM vehicles WHERE sku = $1 AND company_id = $2 AND is_deleted = FALSE`,
+            [sku, company_id],
+          );
+          if (dup.length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ error: `SKU already exists: ${sku}` });
+          }
         }
       }
     }
@@ -473,10 +488,12 @@ async function receivePurchase(req, res) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Invalid purchase_order_item_id' });
       }
-      if (line.vehicle_data && line.vehicle_data.chassis_number && Number(line.quantity_received) !== 1) {
+      const poMeta = poi.vehicle_data && typeof poi.vehicle_data === 'object' ? poi.vehicle_data : {};
+      const serialized = line.vehicle_data?.is_serialized ?? line.is_serialized ?? poMeta.is_serialized ?? true;
+      if (serialized && Number(line.quantity_received) !== 1 && line.vehicle_data) {
         await client.query('ROLLBACK');
         return res.status(400).json({
-          error: 'When capturing vehicle data, quantity_received must be 1 per line',
+          error: 'Serialized inventory lines must be received one unit at a time',
         });
       }
       const prev = await qtyReceivedSoFar(client, line.purchase_order_item_id);
@@ -516,27 +533,71 @@ async function receivePurchase(req, res) {
 
       const poi = itemById.get(line.purchase_order_item_id);
       const vd = line.vehicle_data;
-      if (vd && vd.chassis_number && vd.engine_number) {
-        const purchasePricePaise = vd.purchase_price != null
+      const poMeta = poi.vehicle_data && typeof poi.vehicle_data === 'object' ? poi.vehicle_data : {};
+      const createInventory = poMeta.create_inventory_item !== false;
+      if (createInventory) {
+        const serialized = vd?.is_serialized ?? line.is_serialized ?? poMeta.is_serialized ?? true;
+        const sku = String(vd?.sku || line.sku || poMeta.sku || vd?.chassis_number || '').trim() || null;
+        const itemName = vd?.item_name || line.item_name || poMeta.item_name || poi.description;
+        const purchasePricePaise = vd?.purchase_price != null
           ? Math.round(Number(vd.purchase_price))
           : Number(poi.unit_price);
-        const sellingPaise = vd.selling_price != null ? Math.round(Number(vd.selling_price)) : 0;
-        await client.query(
-          `INSERT INTO vehicles
-             (company_id, branch_id, chassis_number, engine_number, make, model, variant, color, year,
-              purchase_price, selling_price, status, purchase_order_id,
-              rto_number, rto_date, insurance_company, insurance_expiry, insurance_number)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'in_stock',$12,$13,$14,$15,$16,$17)`,
-          [
-            company_id, po.branch_id,
-            String(vd.chassis_number).trim(), String(vd.engine_number).trim(),
-            vd.make || null, vd.model || null, vd.variant || null, vd.color || null,
-            vd.year != null ? parseInt(vd.year, 10) : null,
-            purchasePricePaise, sellingPaise, poId,
-            vd.rto_number || null, vd.rto_date || null, vd.insurance_company || null,
-            vd.insurance_expiry || null, vd.insurance_number || null,
-          ],
-        );
+        const sellingPaise = vd?.selling_price != null ? Math.round(Number(vd.selling_price)) : Number(poi.unit_price);
+        const unitOfMeasure = vd?.unit_of_measure || line.unit_of_measure || poMeta.unit_of_measure || 'Pcs';
+        if (serialized) {
+          await client.query(
+            `INSERT INTO vehicles
+               (company_id, branch_id, item_name, sku, category, brand, unit_of_measure, quantity_in_stock,
+                is_serialized, hsn_code, default_gst_rate, custom_fields, notes,
+                chassis_number, engine_number, make, model, variant, color, year,
+                purchase_price, selling_price, status, purchase_order_id,
+                rto_number, rto_date, insurance_company, insurance_expiry, insurance_number)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,1,TRUE,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,'in_stock',$21,$22,$23,$24,$25,$26)`,
+            [
+              company_id, po.branch_id, itemName, sku, vd?.category || null, vd?.brand || vd?.make || null, unitOfMeasure,
+              vd?.hsn_code || poi.hsn_code || null, Number(vd?.default_gst_rate ?? (Number(poi.cgst_rate) + Number(poi.sgst_rate) + Number(poi.igst_rate))) || 18,
+              JSON.stringify(vd?.custom_fields || {}), vd?.notes || null,
+              vd?.chassis_number || sku, vd?.engine_number || null, vd?.make || null, vd?.model || null, vd?.variant || null,
+              vd?.color || null, vd?.year != null ? parseInt(vd.year, 10) : null,
+              purchasePricePaise, sellingPaise, poId,
+              vd?.rto_number || null, vd?.rto_date || null, vd?.insurance_company || null, vd?.insurance_expiry || null, vd?.insurance_number || null,
+            ],
+          );
+        } else if (sku) {
+          const { rows: existingItem } = await client.query(
+            `SELECT id FROM vehicles WHERE company_id = $1 AND sku = $2 AND is_deleted = FALSE LIMIT 1`,
+            [company_id, sku],
+          );
+          if (existingItem.length) {
+            await client.query(
+              `UPDATE vehicles
+               SET quantity_in_stock = quantity_in_stock + $1,
+                   status = 'in_stock',
+                   unit_of_measure = COALESCE($2, unit_of_measure),
+                   item_name = COALESCE(NULLIF($3, ''), item_name)
+               WHERE id = $4`,
+              [line.quantity_received, unitOfMeasure, itemName, existingItem[0].id],
+            );
+          } else {
+            await client.query(
+              `INSERT INTO vehicles
+                 (company_id, branch_id, item_name, sku, category, brand, unit_of_measure, quantity_in_stock,
+                  is_serialized, hsn_code, default_gst_rate, custom_fields, notes,
+                  purchase_price, selling_price, status, purchase_order_id)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,FALSE,$9,$10,$11,$12,$13,$14,'in_stock',$15)`,
+              [
+                company_id, po.branch_id, itemName, sku, vd?.category || null, vd?.brand || null, unitOfMeasure,
+                line.quantity_received, vd?.hsn_code || poi.hsn_code || null,
+                Number(vd?.default_gst_rate ?? (Number(poi.cgst_rate) + Number(poi.sgst_rate) + Number(poi.igst_rate))) || 18,
+                JSON.stringify(vd?.custom_fields || {}), vd?.notes || null,
+                purchasePricePaise, sellingPaise, poId,
+              ],
+            );
+          }
+        } else {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: `SKU is required for quantity-tracked receipts: ${poi.description}` });
+        }
       }
     }
 

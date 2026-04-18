@@ -17,6 +17,7 @@ import MyAttendance from './pages/MyAttendance';
 import ManagerAttendance from './pages/ManagerAttendance';
 import VehicleDetailPage from './pages/VehicleDetailPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
+import OnboardingPage from './pages/Onboarding';
 import PurchaseList from './pages/purchases/PurchaseList';
 import PurchaseForm from './pages/purchases/PurchaseForm';
 import PurchaseDetail from './pages/purchases/PurchaseDetail';
@@ -33,7 +34,10 @@ const MY_ATTENDANCE_ROLES = ['staff', 'branch_manager', 'company_admin', 'super_
 const EMPLOYEE_PROFILE_ROLES = ['staff', 'branch_manager', 'company_admin', 'super_admin'];
 
 function DefaultRedirect() {
-  const { user } = useAuthStore();
+  const { user, company } = useAuthStore();
+  if (company && company.onboarding_completed === false && user?.role !== 'ca') {
+    return <Navigate to="/onboarding" replace />;
+  }
   if (user?.role === 'ca') return <Navigate to="/ca/dashboard" replace />;
   if (user?.role === 'staff') return <Navigate to="/my-attendance" replace />;
   if (user?.role === 'branch_manager') return <Navigate to="/branch-dashboard" replace />;
@@ -59,6 +63,9 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/unauthorized" element={<UnauthorizedPage />} />
+            <Route element={<ProtectedRoute allowedRoles={['super_admin', 'company_admin', 'branch_manager', 'staff']} />}>
+              <Route path="/onboarding" element={<OnboardingPage />} />
+            </Route>
 
             <Route element={<ProtectedRoute allowedRoles={MY_ATTENDANCE_ROLES} />}>
               <Route path="/my-attendance" element={<MyAttendance />} />

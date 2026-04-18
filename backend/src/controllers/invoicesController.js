@@ -64,27 +64,35 @@ async function insertInvoiceWithItems(client, company_id, branch_id, data) {
 
   const interstate = isInterstate(companyGstin, customerGstin);
 
-  let vehicleId = data.vehicle_id || null;
-  if (vehicleId) {
+  const requestedVehicleIds = [...new Set(
+    [data.vehicle_id, ...data.items.map((item) => item.vehicle_id)].filter(Boolean),
+  )];
+  const vehicleMap = new Map();
+  for (const vehicleId of requestedVehicleIds) {
     const { rows: vRows } = await client.query(
-      `SELECT id, selling_price, status FROM vehicles
+      `SELECT id, item_name, sku, selling_price, hsn_code, default_gst_rate, unit_of_measure,
+              quantity_in_stock, is_serialized, status
+       FROM vehicles
        WHERE id = $1 AND company_id = $2 AND is_deleted = FALSE FOR UPDATE`,
       [vehicleId, company_id],
     );
     if (vRows.length === 0) {
-      const err = new Error('Vehicle not found');
+      const err = new Error('Item not found');
       err.statusCode = 404;
       throw err;
     }
-    if (vRows[0].status !== 'in_stock') {
-      const err = new Error('Vehicle is not available for sale');
+    const vehicle = vRows[0];
+    if (vehicle.status !== 'in_stock' && !(vehicle.is_serialized === false && Number(vehicle.quantity_in_stock) > 0)) {
+      const err = new Error('Item is not available for sale');
       err.statusCode = 400;
       throw err;
     }
+    vehicleMap.set(vehicleId, vehicle);
   }
 
   const invoiceNumber = await generateInvoiceNumber(client, company_id, branch_id);
 
+  let invoiceVehicleId = data.vehicle_id || null;
   let subtotal = 0;
   let totalCgst = 0;
   let totalSgst = 0;
@@ -92,24 +100,40 @@ async function insertInvoiceWithItems(client, company_id, branch_id, data) {
   const processedItems = [];
 
   for (const item of data.items) {
-    const unitPrice = item.unit_price;
+    const linkedItem = item.vehicle_id ? vehicleMap.get(item.vehicle_id) : null;
     const qty = item.quantity || 1;
+    if (linkedItem?.is_serialized && qty !== 1) {
+      const err = new Error('Serialized items can only be invoiced one at a time');
+      err.statusCode = 400;
+      throw err;
+    }
+    if (linkedItem && linkedItem.is_serialized === false && qty > Number(linkedItem.quantity_in_stock)) {
+      const err = new Error(`Insufficient stock. Available: ${linkedItem.quantity_in_stock} ${linkedItem.unit_of_measure}`);
+      err.statusCode = 400;
+      throw err;
+    }
+    const unitPrice = item.unit_price ?? linkedItem?.selling_price ?? 0;
     const lineTotal = unitPrice * qty;
-    const hsnCode = item.hsn_code || '8703';
-    const gstRate = item.gst_rate !== undefined ? item.gst_rate : getGstRateForHsn(hsnCode);
+    const hsnCode = item.hsn_code || linkedItem?.hsn_code || '';
+    const gstRate = item.gst_rate !== undefined
+      ? item.gst_rate
+      : linkedItem?.default_gst_rate ?? getGstRateForHsn(hsnCode);
+    const description = item.description || linkedItem?.item_name || 'Item';
 
     const gst = calculateGst(lineTotal, gstRate, interstate);
 
     const amount = lineTotal + gst.cgst_amount + gst.sgst_amount + gst.igst_amount;
 
     processedItems.push({
-      description: item.description,
+      vehicle_id: item.vehicle_id || null,
+      description,
       hsn_code: hsnCode,
       quantity: qty,
       unit_price: unitPrice,
       ...gst,
       amount,
     });
+    if (!invoiceVehicleId && item.vehicle_id) invoiceVehicleId = item.vehicle_id;
 
     subtotal += lineTotal;
     totalCgst += gst.cgst_amount;
@@ -121,14 +145,14 @@ async function insertInvoiceWithItems(client, company_id, branch_id, data) {
   const total = subtotal - discount + totalCgst + totalSgst + totalIgst;
 
   const { rows: invRows } = await client.query(
-    `INSERT INTO invoices
+      `INSERT INTO invoices
        (company_id, branch_id, invoice_number, invoice_date, customer_id, vehicle_id,
         subtotal, discount, cgst_amount, sgst_amount, igst_amount, total, status, notes)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
      RETURNING *`,
     [
       company_id, branch_id, invoiceNumber, data.invoice_date || new Date().toISOString().split('T')[0],
-      customerId, vehicleId,
+      customerId, invoiceVehicleId,
       subtotal, discount, totalCgst, totalSgst, totalIgst, total,
       data.status || 'draft', data.notes || null,
     ],
@@ -139,22 +163,37 @@ async function insertInvoiceWithItems(client, company_id, branch_id, data) {
   for (const item of processedItems) {
     await client.query(
       `INSERT INTO invoice_items
-         (invoice_id, company_id, description, hsn_code, quantity, unit_price,
+         (invoice_id, company_id, vehicle_id, description, hsn_code, quantity, unit_price,
           cgst_rate, sgst_rate, igst_rate, cgst_amount, sgst_amount, igst_amount, amount)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
       [
-        invoice.id, company_id, item.description, item.hsn_code, item.quantity,
+        invoice.id, company_id, item.vehicle_id, item.description, item.hsn_code, item.quantity,
         item.unit_price, item.cgst_rate, item.sgst_rate, item.igst_rate,
         item.cgst_amount, item.sgst_amount, item.igst_amount, item.amount,
       ],
     );
   }
 
-  if (data.status === 'confirmed' && vehicleId) {
-    await client.query(
-      `UPDATE vehicles SET status = 'sold' WHERE id = $1 AND company_id = $2`,
-      [vehicleId, company_id],
-    );
+  if (data.status === 'confirmed') {
+    for (const item of processedItems) {
+      if (!item.vehicle_id) continue;
+      const linkedItem = vehicleMap.get(item.vehicle_id);
+      if (!linkedItem) continue;
+      if (linkedItem.is_serialized) {
+        await client.query(
+          `UPDATE vehicles SET status = 'sold', quantity_in_stock = 0 WHERE id = $1 AND company_id = $2`,
+          [item.vehicle_id, company_id],
+        );
+      } else {
+        await client.query(
+          `UPDATE vehicles
+           SET quantity_in_stock = quantity_in_stock - $1,
+               status = CASE WHEN quantity_in_stock - $1 <= 0 THEN 'sold' ELSE 'in_stock' END
+           WHERE id = $2 AND company_id = $3`,
+          [item.quantity, item.vehicle_id, company_id],
+        );
+      }
+    }
   }
 
   return invoice;
@@ -240,7 +279,8 @@ async function listInvoices(req, res) {
   const { rows } = await query(
     `SELECT i.*, c.name AS customer_name, c.phone AS customer_phone,
             b.name AS branch_name,
-            v.make AS vehicle_make, v.model AS vehicle_model, v.chassis_number
+            COALESCE(v.item_name, CONCAT_WS(' ', v.make, v.model, v.variant)) AS item_name,
+            COALESCE(v.sku, v.chassis_number) AS sku
      FROM invoices i
      LEFT JOIN customers c ON c.id = i.customer_id
      LEFT JOIN branches b ON b.id = i.branch_id
@@ -292,12 +332,30 @@ async function cancelInvoice(req, res) {
       return res.status(400).json({ error: 'Invoice is already cancelled' });
     }
 
-    // Revert vehicle to in_stock if it was sold via this invoice
-    if (inv.vehicle_id && inv.status === 'confirmed') {
-      await client.query(
-        `UPDATE vehicles SET status = 'in_stock' WHERE id = $1 AND company_id = $2`,
-        [inv.vehicle_id, company_id],
+    if (inv.status === 'confirmed') {
+      const { rows: lineItems } = await client.query(
+        `SELECT ii.vehicle_id, ii.quantity, v.is_serialized
+         FROM invoice_items ii
+         LEFT JOIN vehicles v ON v.id = ii.vehicle_id
+         WHERE ii.invoice_id = $1 AND ii.is_deleted = FALSE AND ii.vehicle_id IS NOT NULL`,
+        [id],
       );
+      for (const item of lineItems) {
+        if (item.is_serialized) {
+          await client.query(
+            `UPDATE vehicles SET status = 'in_stock', quantity_in_stock = 1 WHERE id = $1 AND company_id = $2`,
+            [item.vehicle_id, company_id],
+          );
+        } else {
+          await client.query(
+            `UPDATE vehicles
+             SET quantity_in_stock = quantity_in_stock + $1,
+                 status = 'in_stock'
+             WHERE id = $2 AND company_id = $3`,
+            [item.quantity, item.vehicle_id, company_id],
+          );
+        }
+      }
     }
 
     await client.query(
@@ -340,19 +398,37 @@ async function confirmInvoice(req, res) {
       return res.status(400).json({ error: 'Only draft invoices can be confirmed' });
     }
 
-    if (rows[0].vehicle_id) {
-      const { rows: vRows } = await client.query(
-        `SELECT status FROM vehicles WHERE id = $1 AND company_id = $2 FOR UPDATE`,
-        [rows[0].vehicle_id, company_id],
-      );
-      if (vRows[0]?.status !== 'in_stock') {
+    const { rows: lineItems } = await client.query(
+      `SELECT ii.vehicle_id, ii.quantity, v.status, v.quantity_in_stock, v.is_serialized, v.unit_of_measure
+       FROM invoice_items ii
+       LEFT JOIN vehicles v ON v.id = ii.vehicle_id
+       WHERE ii.invoice_id = $1 AND ii.is_deleted = FALSE AND ii.vehicle_id IS NOT NULL
+       FOR UPDATE OF v`,
+      [id],
+    );
+
+    for (const item of lineItems) {
+      if (item.is_serialized) {
+        if (item.status !== 'in_stock') {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'One of the selected items is no longer available' });
+        }
+        await client.query(
+          `UPDATE vehicles SET status = 'sold', quantity_in_stock = 0 WHERE id = $1`,
+          [item.vehicle_id],
+        );
+      } else if (Number(item.quantity) > Number(item.quantity_in_stock)) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ error: 'Vehicle is no longer available' });
+        return res.status(400).json({ error: `Insufficient stock. Available: ${item.quantity_in_stock} ${item.unit_of_measure}` });
+      } else {
+        await client.query(
+          `UPDATE vehicles
+           SET quantity_in_stock = quantity_in_stock - $1,
+               status = CASE WHEN quantity_in_stock - $1 <= 0 THEN 'sold' ELSE 'in_stock' END
+           WHERE id = $2`,
+          [item.quantity, item.vehicle_id],
+        );
       }
-      await client.query(
-        `UPDATE vehicles SET status = 'sold' WHERE id = $1`,
-        [rows[0].vehicle_id],
-      );
     }
 
     await client.query(
@@ -382,6 +458,9 @@ async function fetchFullInvoice(invoiceId, companyId) {
             co.name AS company_name, co.gstin AS company_gstin, co.address AS company_address,
             co.phone AS company_phone, co.email AS company_email,
             co.logo_url, co.signature_url,
+            v.item_name, v.sku, v.category, v.brand, v.unit_of_measure, v.quantity_in_stock,
+            v.is_serialized, v.hsn_code AS item_hsn_code, v.default_gst_rate AS item_default_gst_rate,
+            v.custom_fields, v.notes AS item_notes,
             v.chassis_number, v.engine_number, v.make AS vehicle_make, v.model AS vehicle_model,
             v.variant AS vehicle_variant, v.color AS vehicle_color, v.year AS vehicle_year,
             lo.bank_name AS loan_bank_name, lo.loan_amount AS loan_amount,
@@ -406,7 +485,12 @@ async function fetchFullInvoice(invoiceId, companyId) {
   if (rows.length === 0) return null;
 
   const { rows: items } = await query(
-    `SELECT * FROM invoice_items WHERE invoice_id = $1 AND is_deleted = FALSE ORDER BY created_at`,
+    `SELECT ii.*, v.item_name, v.sku, v.category, v.brand, v.unit_of_measure, v.quantity_in_stock,
+            v.is_serialized, v.custom_fields, v.chassis_number, v.engine_number, v.make, v.model, v.variant
+     FROM invoice_items ii
+     LEFT JOIN vehicles v ON v.id = ii.vehicle_id
+     WHERE ii.invoice_id = $1 AND ii.is_deleted = FALSE
+     ORDER BY ii.created_at`,
     [invoiceId],
   );
 

@@ -1,67 +1,21 @@
-import { useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import AppLayout from '@/components/AppLayout';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import useTerms from '@/hooks/useTerms';
+import api from '@/lib/api';
+import { formatCurrency, formatDate } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import {
-  ArrowLeft, Pencil, AlertTriangle, Clock, FileText,
-  ArrowRightLeft, Landmark, Package, Shield, Car, Loader2, Printer,
-} from 'lucide-react';
-import { formatCurrency, formatDate, cn } from '@/lib/utils';
-import api from '@/lib/api';
-import useAuthStore from '@/store/authStore';
-import WhatsAppSendDialog from '@/components/WhatsAppSendDialog';
-import { usePermissions } from '@/hooks/usePermissions';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { ArrowLeft, Loader2, Pencil, Printer } from 'lucide-react';
 
-function startOfLocalDay(d) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-
-function loanOverdueDays(loan) {
-  if (!loan.due_date) return 0;
-  const due = startOfLocalDay(loan.due_date);
-  const today = startOfLocalDay(new Date());
-  const diff = Math.floor((today - due) / 86400000);
-  return diff > 0 ? diff : 0;
-}
-
-function isLoanPastDue(loan) {
-  if (!loan.due_date || !['active', 'overdue'].includes(loan.status)) return false;
-  return loanOverdueDays(loan) > 0;
-}
-
-function lastReminderLabel(dateStr) {
-  if (!dateStr) return null;
-  const sent = startOfLocalDay(dateStr);
-  const today = startOfLocalDay(new Date());
-  const diffDays = Math.floor((today - sent) / 86400000);
-  if (diffDays === 0) return 'today';
-  if (diffDays === 1) return 'yesterday';
-  return `${diffDays} days ago`;
-}
-
-const STATUS_BADGE = {
-  in_stock: 'success',
-  sold: 'default',
-  transferred: 'warning',
-  scrapped: 'destructive',
-};
-
-const STATUS_LABEL = {
-  in_stock: 'In Stock',
-  sold: 'Sold',
-  transferred: 'Transferred',
-  scrapped: 'Scrapped',
-};
-
-function useVehicleDetail(id) {
+function useItemDetail(id) {
   return useQuery({
     queryKey: ['vehicle', id],
     queryFn: () => api.get(`/vehicles/${id}`).then((r) => r.data),
@@ -69,136 +23,128 @@ function useVehicleDetail(id) {
   });
 }
 
-function InsuranceExpiryBadge({ expiryDate }) {
-  if (!expiryDate) return <span className="text-muted-foreground text-sm">Not set</span>;
-
-  const expiry = new Date(expiryDate);
-  const now = new Date();
-  const diffDays = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
-
-  if (diffDays < 0) {
-    return <Badge variant="destructive">Expired {Math.abs(diffDays)}d ago</Badge>;
-  }
-  if (diffDays <= 30) {
-    return <Badge variant="warning">Expires in {diffDays}d</Badge>;
-  }
-  return <span className="text-sm">{formatDate(expiryDate)}</span>;
-}
-
-function DetailRow({ label, children }) {
+function DetailRow({ label, value }) {
+  if (value === null || value === undefined || value === '') return null;
   return (
-    <div className="flex justify-between items-center py-2 border-b border-border/50 last:border-b-0">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <span className="text-sm font-medium text-right">{children || '—'}</span>
+    <div className="py-2 border-b border-border/50 last:border-0">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">{label}</p>
+      <p className="text-sm font-medium break-words">{value}</p>
     </div>
   );
 }
 
-function EditVehicleSheet({ open, onOpenChange, vehicle, onSuccess }) {
-  const [form, setForm] = useState({});
+function EditItemSheet({ open, onOpenChange, item }) {
+  const terms = useTerms();
   const queryClient = useQueryClient();
+  const [form, setForm] = useState({});
+  const [error, setError] = useState('');
 
-  const resetForm = () => {
-    if (!vehicle) return;
-    setForm({
-      chassis_number: vehicle.chassis_number || '',
-      engine_number: vehicle.engine_number || '',
-      make: vehicle.make || '',
-      model: vehicle.model || '',
-      variant: vehicle.variant || '',
-      color: vehicle.color || '',
-      year: vehicle.year || '',
-      rto_number: vehicle.rto_number || '',
-      rto_date: vehicle.rto_date ? vehicle.rto_date.slice(0, 10) : '',
-      insurance_company: vehicle.insurance_company || '',
-      insurance_number: vehicle.insurance_number || '',
-      insurance_expiry: vehicle.insurance_expiry ? vehicle.insurance_expiry.slice(0, 10) : '',
-      purchase_price: vehicle.purchase_price || 0,
-      selling_price: vehicle.selling_price || 0,
-    });
-  };
-
-  const handleOpen = (isOpen) => {
-    if (isOpen) resetForm();
-    onOpenChange(isOpen);
-  };
+  useEffect(() => {
+    if (open && item) {
+      setForm({
+        item_name: item.item_name || '',
+        sku: item.sku || '',
+        category: item.category || '',
+        brand: item.brand || '',
+        unit_of_measure: item.unit_of_measure || 'Pcs',
+        quantity_in_stock: item.quantity_in_stock || 1,
+        is_serialized: !!item.is_serialized,
+        purchase_price: Number(item.purchase_price || 0) / 100,
+        selling_price: Number(item.selling_price || 0) / 100,
+        hsn_code: item.hsn_code || '',
+        default_gst_rate: Number(item.default_gst_rate || 18),
+        notes: item.notes || '',
+      });
+      setError('');
+    }
+  }, [open, item]);
 
   const mutation = useMutation({
-    mutationFn: (data) => api.patch(`/vehicles/${vehicle.id}`, data),
+    mutationFn: (payload) => api.patch(`/vehicles/${item.id}`, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['vehicle', vehicle.id] });
+      queryClient.invalidateQueries({ queryKey: ['vehicle', item.id] });
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] });
       onOpenChange(false);
-      onSuccess?.();
     },
+    onError: (err) => setError(err.response?.data?.error || 'Update failed'),
   });
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const payload = {
-      ...form,
-      year: form.year ? Number(form.year) : undefined,
-      purchase_price: Number(form.purchase_price),
-      selling_price: Number(form.selling_price),
-      rto_date: form.rto_date || null,
-      insurance_expiry: form.insurance_expiry || null,
-      insurance_company: form.insurance_company || null,
-      insurance_number: form.insurance_number || null,
-    };
-    mutation.mutate(payload);
+  const setField = (key) => (e) => {
+    const value = e?.target?.type === 'checkbox' ? e.target.checked : e?.target?.value;
+    setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const field = (key, label, type = 'text') => (
-    <div key={key}>
-      <Label>{label}</Label>
-      <Input
-        type={type}
-        value={form[key] ?? ''}
-        onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))}
-      />
-    </div>
-  );
-
   return (
-    <Sheet open={open} onOpenChange={handleOpen}>
-      <SheetContent>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Edit Vehicle</SheetTitle>
+          <SheetTitle>Edit {terms.item}</SheetTitle>
         </SheetHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          <div className="grid grid-cols-2 gap-3">
-            {field('chassis_number', 'Chassis Number')}
-            {field('engine_number', 'Engine Number')}
-            {field('make', 'Make')}
-            {field('model', 'Model')}
-            {field('variant', 'Variant')}
-            {field('color', 'Color')}
-            {field('year', 'Year', 'number')}
+        <form
+          className="space-y-4 mt-6"
+          onSubmit={(e) => {
+            e.preventDefault();
+            mutation.mutate({
+              ...form,
+              quantity_in_stock: form.is_serialized ? 1 : Number(form.quantity_in_stock || 0),
+              purchase_price: Math.round(Number(form.purchase_price || 0) * 100),
+              selling_price: Math.round(Number(form.selling_price || 0) * 100),
+              default_gst_rate: Number(form.default_gst_rate || 18),
+            });
+          }}
+        >
+          <div className="space-y-1.5">
+            <Label>{terms.item} Name</Label>
+            <Input value={form.item_name || ''} onChange={setField('item_name')} />
           </div>
-
-          <h4 className="font-medium text-sm pt-2">RTO & Insurance</h4>
           <div className="grid grid-cols-2 gap-3">
-            {field('rto_number', 'RTO Number')}
-            {field('rto_date', 'RTO Date', 'date')}
-            {field('insurance_company', 'Insurance Company')}
-            {field('insurance_number', 'Policy Number')}
-            {field('insurance_expiry', 'Insurance Expiry', 'date')}
+            <div className="space-y-1.5">
+              <Label>SKU / Item Code</Label>
+              <Input value={form.sku || ''} onChange={setField('sku')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Category</Label>
+              <Input value={form.category || ''} onChange={setField('category')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Brand</Label>
+              <Input value={form.brand || ''} onChange={setField('brand')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Unit</Label>
+              <Input value={form.unit_of_measure || ''} onChange={setField('unit_of_measure')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Purchase Price (₹)</Label>
+              <Input type="number" min="0" step="0.01" value={form.purchase_price || ''} onChange={setField('purchase_price')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Selling Price (₹)</Label>
+              <Input type="number" min="0" step="0.01" value={form.selling_price || ''} onChange={setField('selling_price')} />
+            </div>
+            {!form.is_serialized && (
+              <div className="space-y-1.5">
+                <Label>Quantity in Stock</Label>
+                <Input type="number" min="0" value={form.quantity_in_stock || 0} onChange={setField('quantity_in_stock')} />
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label>HSN Code</Label>
+              <Input value={form.hsn_code || ''} onChange={setField('hsn_code')} />
+            </div>
           </div>
-
-          <h4 className="font-medium text-sm pt-2">Pricing (in paise)</h4>
-          <div className="grid grid-cols-2 gap-3">
-            {field('purchase_price', 'Purchase Price', 'number')}
-            {field('selling_price', 'Selling Price', 'number')}
+          <label className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
+            <input type="checkbox" checked={!!form.is_serialized} onChange={setField('is_serialized')} />
+            <span className="text-sm">Track as individual unit</span>
+          </label>
+          <div className="space-y-1.5">
+            <Label>Notes</Label>
+            <Textarea value={form.notes || ''} onChange={setField('notes')} />
           </div>
-
-          {mutation.isError && (
-            <p className="text-sm text-destructive">
-              {mutation.error?.response?.data?.error || 'Update failed'}
-            </p>
-          )}
-
-          <Button type="submit" className="w-full" disabled={mutation.isPending}>
-            {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Save Changes
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <Button className="w-full" type="submit" disabled={mutation.isPending}>
+            {mutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Save {terms.item}
           </Button>
         </form>
       </SheetContent>
@@ -206,408 +152,149 @@ function EditVehicleSheet({ open, onOpenChange, vehicle, onSuccess }) {
   );
 }
 
-function VehicleIdentitySection({ vehicle, onEdit }) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <div className="flex items-center gap-3">
-          <Car className="h-5 w-5 text-primary" />
-          <CardTitle>Vehicle Identity</CardTitle>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant={STATUS_BADGE[vehicle.status]}>
-            {STATUS_LABEL[vehicle.status] || vehicle.status}
-          </Badge>
-          <Button variant="outline" size="sm" onClick={onEdit}>
-            <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 mt-4">
-          <DetailRow label="Chassis Number">{vehicle.chassis_number}</DetailRow>
-          <DetailRow label="Engine Number">{vehicle.engine_number}</DetailRow>
-          <DetailRow label="Make">{vehicle.make}</DetailRow>
-          <DetailRow label="Model">{vehicle.model}</DetailRow>
-          <DetailRow label="Variant">{vehicle.variant}</DetailRow>
-          <DetailRow label="Color">{vehicle.color}</DetailRow>
-          <DetailRow label="Year">{vehicle.year}</DetailRow>
-          <DetailRow label="Branch">{vehicle.branch_name}</DetailRow>
-        </div>
-        <div className="mt-6 p-4 bg-muted/30 rounded-lg flex flex-col items-center justify-center border border-dashed border-border/60">
-          <img 
-            src={`/api/vehicles/${vehicle.id}/barcode`} 
-            alt={`Barcode for ${vehicle.chassis_number}`} 
-            className="h-16 object-contain mb-2 mix-blend-multiply"
-          />
-          <p className="font-mono text-sm tracking-widest text-muted-foreground">{vehicle.chassis_number}</p>
-          <div className="mt-3">
-            <Button size="sm" variant="outline" asChild>
-              <a href={`/api/vehicles/${vehicle.id}/label`} target="_blank" rel="noreferrer">
-                <Printer className="h-3.5 w-3.5 mr-2" />
-                Print Label
-              </a>
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function RtoInsuranceSection({ vehicle, onEdit }) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <div className="flex items-center gap-3">
-          <Shield className="h-5 w-5 text-primary" />
-          <CardTitle>RTO & Insurance</CardTitle>
-        </div>
-        <Button variant="outline" size="sm" onClick={onEdit}>
-          <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
-        </Button>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
-          <DetailRow label="RTO Number">{vehicle.rto_number}</DetailRow>
-          <DetailRow label="RTO Date">
-            {vehicle.rto_date ? formatDate(vehicle.rto_date) : null}
-          </DetailRow>
-          <DetailRow label="Insurance Company">{vehicle.insurance_company}</DetailRow>
-          <DetailRow label="Policy Number">{vehicle.insurance_number}</DetailRow>
-          <DetailRow label="Insurance Expiry">
-            <InsuranceExpiryBadge expiryDate={vehicle.insurance_expiry} />
-          </DetailRow>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function PricingSection({ vehicle }) {
-  const purchase = vehicle.purchase_price || 0;
-  const selling = vehicle.selling_price || 0;
-  const margin = purchase > 0 ? (((selling - purchase) / purchase) * 100).toFixed(1) : '—';
-
-  return (
-    <Card>
-      <CardHeader className="pb-4">
-        <div className="flex items-center gap-3">
-          <Package className="h-5 w-5 text-primary" />
-          <CardTitle>Pricing</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-muted/50 rounded-lg p-4 text-center">
-            <p className="text-xs text-muted-foreground mb-1">Purchase Price</p>
-            <p className="text-lg font-semibold">{formatCurrency(purchase)}</p>
-          </div>
-          <div className="bg-muted/50 rounded-lg p-4 text-center">
-            <p className="text-xs text-muted-foreground mb-1">Selling Price</p>
-            <p className="text-lg font-semibold">{formatCurrency(selling)}</p>
-          </div>
-          <div className="bg-muted/50 rounded-lg p-4 text-center">
-            <p className="text-xs text-muted-foreground mb-1">Margin</p>
-            <p className={cn(
-              'text-lg font-semibold',
-              margin !== '—' && Number(margin) >= 0 ? 'text-emerald-600' : 'text-red-600',
-            )}>
-              {margin !== '—' ? `${margin}%` : '—'}
-            </p>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function TransferHistorySection({ transfers }) {
-  if (!transfers || transfers.length === 0) {
-    return (
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex items-center gap-3">
-            <ArrowRightLeft className="h-5 w-5 text-primary" />
-            <CardTitle>Transfer History</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">No transfers recorded for this vehicle.</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card>
-      <CardHeader className="pb-4">
-        <div className="flex items-center gap-3">
-          <ArrowRightLeft className="h-5 w-5 text-primary" />
-          <CardTitle>Transfer History</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="relative pl-6 space-y-6">
-          <div className="absolute left-[11px] top-2 bottom-2 w-px bg-border" />
-          {transfers.map((t) => (
-            <div key={t.id} className="relative">
-              <div className="absolute -left-6 top-1 h-2.5 w-2.5 rounded-full bg-primary border-2 border-background" />
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                <div>
-                  <p className="text-sm font-medium">
-                    {t.from_branch_name} → {t.to_branch_name}
-                  </p>
-                  {t.notes && (
-                    <p className="text-xs text-muted-foreground mt-0.5">{t.notes}</p>
-                  )}
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">
-                    {formatDate(t.transferred_at)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    by {t.transferred_by_name}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function LoanDetailsSection({ loans, canRemind, onRemind }) {
-  if (!loans || loans.length === 0) {
-    return (
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex items-center gap-3">
-            <Landmark className="h-5 w-5 text-primary" />
-            <CardTitle>Loan Details</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">No loan associated with this vehicle.</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card>
-      <CardHeader className="pb-4">
-        <div className="flex items-center gap-3">
-          <Landmark className="h-5 w-5 text-primary" />
-          <CardTitle>Loan Details</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {loans.map((loan) => {
-          const overdueDays = loanOverdueDays(loan);
-          const isOverdue = isLoanPastDue(loan);
-          return (
-            <div key={loan.id} className={cn(
-              'border rounded-lg p-4',
-              isOverdue ? 'border-red-300 bg-red-50/50' : 'border-border',
-            )}>
-              <div className="flex items-center justify-between mb-3">
-                <span className="font-medium text-sm">{loan.bank_name}</span>
-                <Badge variant={
-                  loan.status === 'active' ? (isOverdue ? 'destructive' : 'success') : 'secondary'
-                }>
-                  {isOverdue ? 'Overdue' : loan.status}
-                </Badge>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-                <div>
-                  <p className="text-muted-foreground text-xs">Loan Amount</p>
-                  <p className="font-medium">{formatCurrency(loan.loan_amount)}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">EMI</p>
-                  <p className="font-medium">{formatCurrency(loan.emi_amount)}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground text-xs">Due Date</p>
-                  <p className="font-medium">{formatDate(loan.due_date)}</p>
-                </div>
-                {(loan.total_penalty_accrued > 0 || isOverdue) && (
-                  <div>
-                    <p className="text-muted-foreground text-xs">Net penalty</p>
-                    <p className="font-medium text-red-600">
-                      {formatCurrency(Math.max(0, (loan.total_penalty_accrued || 0) - (loan.penalty_waived || 0)))}
-                    </p>
-                  </div>
-                )}
-                {loan.customer_name && (
-                  <div>
-                    <p className="text-muted-foreground text-xs">Customer</p>
-                    <p className="font-medium">{loan.customer_name}</p>
-                  </div>
-                )}
-              </div>
-              {isOverdue && (
-                <div className="mt-3 rounded-md border border-red-200 bg-red-50/80 p-3 space-y-2">
-                  <p className="text-sm font-medium text-red-800">
-                    Loan overdue by {overdueDays} day{overdueDays === 1 ? '' : 's'} — {formatCurrency(Math.max(0, (loan.total_penalty_accrued || 0) - (loan.penalty_waived || 0)))} net penalty
-                  </p>
-                  {loan.last_reminder_sent && (
-                    <p className="text-xs text-muted-foreground">
-                      Last reminder sent {lastReminderLabel(loan.last_reminder_sent)}
-                    </p>
-                  )}
-                  {canRemind && loan.customer_phone && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => onRemind(loan)}
-                    >
-                      Send reminder
-                    </Button>
-                  )}
-                  {canRemind && !loan.customer_phone && (
-                    <p className="text-xs text-amber-800">
-                      Add a customer phone number on the loan/invoice to send WhatsApp reminders.
-                    </p>
-                  )}
-                </div>
-              )}
-              <Link
-                to="/loans"
-                className="text-xs text-primary hover:underline mt-3 inline-block"
-              >
-                View full loan record →
-              </Link>
-            </div>
-          );
-        })}
-      </CardContent>
-    </Card>
-  );
-}
-
-function DocumentsSection() {
-  return (
-    <Card>
-      <CardHeader className="pb-4">
-        <div className="flex items-center gap-3">
-          <FileText className="h-5 w-5 text-primary" />
-          <CardTitle>Documents</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col items-center justify-center py-8 text-center">
-          <FileText className="h-10 w-10 text-muted-foreground/40 mb-3" />
-          <p className="text-sm text-muted-foreground">Add documents coming soon</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Upload RC, insurance papers, and other vehicle documents
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 export default function VehicleDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuthStore();
-  const qc = useQueryClient();
-  const { canWrite, isCA } = usePermissions();
-  const canRemind = canWrite && !isCA;
+  const terms = useTerms();
   const [editOpen, setEditOpen] = useState(false);
-  const [waLoan, setWaLoan] = useState(null);
-  const { data, isLoading, isError } = useVehicleDetail(id);
+  const { data, isLoading } = useItemDetail(id);
 
-  const canSeePricing = ['super_admin', 'company_admin', 'branch_manager'].includes(user?.role);
-
-  if (isLoading) {
-    return (
-      <AppLayout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </AppLayout>
-    );
-  }
-
-  if (isError || !data?.vehicle) {
-    return (
-      <AppLayout>
-        <div className="flex flex-col items-center justify-center h-64 gap-4">
-          <AlertTriangle className="h-10 w-10 text-destructive" />
-          <p className="text-muted-foreground">Vehicle not found or failed to load.</p>
-          <Button variant="outline" onClick={() => navigate('/inventory')}>
-            <ArrowLeft className="h-4 w-4 mr-2" /> Back to Inventory
-          </Button>
-        </div>
-      </AppLayout>
-    );
-  }
-
-  const { vehicle, transfers, loans } = data;
+  const item = data?.vehicle;
+  const customFields = item?.custom_fields && typeof item.custom_fields === 'object' ? Object.entries(item.custom_fields) : [];
+  const margin = Number(item?.selling_price || 0) - Number(item?.purchase_price || 0);
+  const statusLabel = item?.status === 'sold' ? 'Sold' : 'In Stock';
 
   return (
     <AppLayout>
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/inventory')}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
+      <div className="flex items-center justify-between gap-3 mb-6">
+        <Button variant="ghost" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-4 w-4 mr-2" /> Back
+        </Button>
+        {item && (
+          <Button variant="outline" onClick={() => setEditOpen(true)}>
+            <Pencil className="h-4 w-4 mr-2" /> Edit
+          </Button>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin" /></div>
+      ) : !item ? (
+        <Card><CardContent className="py-12 text-center text-muted-foreground">{terms.Item} not found.</CardContent></Card>
+      ) : (
+        <>
+          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-xl font-bold">
-                {[vehicle.make, vehicle.model, vehicle.variant].filter(Boolean).join(' ') || 'Vehicle'}
-              </h1>
-              <p className="text-sm text-muted-foreground">{vehicle.chassis_number}</p>
+              <h1 className="text-3xl font-semibold leading-tight">{item.item_name || [item.make, item.model, item.variant].filter(Boolean).join(' ')}</h1>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {item.sku && <Badge variant="secondary" className="font-mono">{item.sku}</Badge>}
+                {item.category && <Badge variant="secondary">{item.category}</Badge>}
+                {item.brand && <Badge variant="secondary">{item.brand}</Badge>}
+                {item.unit_of_measure && <Badge variant="secondary">{item.unit_of_measure}</Badge>}
+                <Badge variant={item.status === 'sold' ? 'default' : 'success'}>{statusLabel}</Badge>
+              </div>
             </div>
-          </div>
-          <div>
             <Button variant="outline" asChild>
-              <a href={`/api/vehicles/${vehicle.id}/label?token=${useAuthStore.getState().token}`} target="_blank" rel="noreferrer">
-                <Printer className="h-4 w-4 mr-2" />
-                Print Label
+              <a href={`/api/vehicles/${item.id}/label`} target="_blank" rel="noreferrer">
+                <Printer className="h-4 w-4 mr-2" /> Print Label
               </a>
             </Button>
           </div>
-        </div>
 
-        <VehicleIdentitySection vehicle={vehicle} onEdit={() => setEditOpen(true)} />
-        <RtoInsuranceSection vehicle={vehicle} onEdit={() => setEditOpen(true)} />
-        {canSeePricing && <PricingSection vehicle={vehicle} />}
-        <TransferHistorySection transfers={transfers} />
-        <LoanDetailsSection
-          loans={loans}
-          canRemind={canRemind}
-          onRemind={(loan) => setWaLoan({ id: loan.id, name: loan.customer_name })}
-        />
-        <DocumentsSection />
+          <Tabs defaultValue="details">
+            <TabsList>
+              <TabsTrigger value="details">Item Details</TabsTrigger>
+              <TabsTrigger value="history">History</TabsTrigger>
+              <TabsTrigger value="documents">Documents</TabsTrigger>
+            </TabsList>
 
-        <EditVehicleSheet
-          open={editOpen}
-          onOpenChange={setEditOpen}
-          vehicle={vehicle}
-        />
+            <TabsContent value="details" className="mt-4">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader><CardTitle>Overview</CardTitle></CardHeader>
+                  <CardContent>
+                    <DetailRow label="Purchase Price" value={formatCurrency(item.purchase_price)} />
+                    <DetailRow label="Selling Price" value={formatCurrency(item.selling_price)} />
+                    <DetailRow label="Margin" value={formatCurrency(margin)} />
+                    <DetailRow label="Category" value={item.category} />
+                    <DetailRow label="Brand" value={item.brand} />
+                    <DetailRow label="Unit of Measure" value={item.unit_of_measure} />
+                    <DetailRow label="HSN Code" value={item.hsn_code} />
+                    <DetailRow label="GST Rate" value={item.default_gst_rate != null ? `${item.default_gst_rate}%` : null} />
+                    <DetailRow label="SKU" value={item.sku} />
+                    <DetailRow label="Status" value={statusLabel} />
+                    <DetailRow label="Stock" value={item.is_serialized ? (item.status === 'in_stock' ? '1 unit' : 'Sold') : `${item.quantity_in_stock} ${item.unit_of_measure}`} />
+                  </CardContent>
+                </Card>
 
-        <WhatsAppSendDialog
-          key={waLoan ? `wa-loan-${waLoan.id}` : 'wa-loan-closed'}
-          open={!!waLoan}
-          onOpenChange={(o) => { if (!o) setWaLoan(null); }}
-          kind="loan"
-          entityId={waLoan?.id}
-          customerName={waLoan?.name}
-          onAppSendSuccess={() => {
-            qc.invalidateQueries({ queryKey: ['vehicle', id] });
-          }}
-        />
+                <Card>
+                  <CardHeader><CardTitle>Additional Details</CardTitle></CardHeader>
+                  <CardContent>
+                    {customFields.length > 0 ? customFields.map(([key, value]) => (
+                      <DetailRow key={key} label={key.replace(/_/g, ' ')} value={String(value)} />
+                    )) : <p className="text-sm text-muted-foreground">No custom fields added for this {terms.item.toLowerCase()} yet.</p>}
+                    <DetailRow label="Secondary ID" value={item.engine_number} />
+                    <DetailRow label="Brand / Make" value={item.make} />
+                    <DetailRow label="Model / Type" value={item.model} />
+                    <DetailRow label="Variant / Spec" value={item.variant} />
+                    <DetailRow label="Color" value={item.color} />
+                    <DetailRow label="Year" value={item.year} />
+                    <DetailRow label="Chassis / Legacy Code" value={item.chassis_number} />
+                    <DetailRow label="RTO Number" value={item.rto_number} />
+                    <DetailRow label="RTO Date" value={item.rto_date ? formatDate(item.rto_date) : null} />
+                    <DetailRow label="Insurance Company" value={item.insurance_company} />
+                    <DetailRow label="Insurance Number" value={item.insurance_number} />
+                    <DetailRow label="Insurance Expiry" value={item.insurance_expiry ? formatDate(item.insurance_expiry) : null} />
+                    <DetailRow label="Notes" value={item.notes} />
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
 
+            <TabsContent value="history" className="mt-4">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader><CardTitle>Transfers</CardTitle></CardHeader>
+                  <CardContent className="space-y-3">
+                    {(data.transfers || []).length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No stock transfers yet.</p>
+                    ) : data.transfers.map((transfer) => (
+                      <div key={transfer.id} className="rounded-lg border border-border p-3">
+                        <p className="font-medium">{transfer.from_branch_name} → {transfer.to_branch_name}</p>
+                        <p className="text-sm text-muted-foreground">{formatDate(transfer.transferred_at)}</p>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
 
-      </div>
+                <Card>
+                  <CardHeader><CardTitle>Invoices</CardTitle></CardHeader>
+                  <CardContent className="space-y-3">
+                    {(data.invoices || []).length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No invoices linked yet.</p>
+                    ) : data.invoices.map((invoice) => (
+                      <Link key={invoice.id} to="/sales" className="block rounded-lg border border-border p-3 hover:bg-accent">
+                        <p className="font-medium">{invoice.invoice_number}</p>
+                        <p className="text-sm text-muted-foreground">{invoice.customer_name} · {formatCurrency(invoice.total)}</p>
+                      </Link>
+                    ))}
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="documents" className="mt-4">
+              <Card>
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  Documents for this {terms.item.toLowerCase()} will appear here.
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </>
+      )}
+
+      {item && <EditItemSheet open={editOpen} onOpenChange={setEditOpen} item={item} />}
     </AppLayout>
   );
 }

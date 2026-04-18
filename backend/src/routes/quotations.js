@@ -4,9 +4,11 @@ const { validateBody } = require('../middleware/validate');
 const { verifyToken } = require('../middleware/auth');
 const { requireMinRole, requireNotRole, requireRole } = require('../middleware/role');
 const qc = require('../controllers/quotationsController');
+const { requireModule } = require('../middleware/moduleGuard');
 
 const router = Router();
 router.use(verifyToken);
+router.use(requireModule('quotations'));
 
 const itemTypeEnum = z.enum(['vehicle', 'accessory', 'insurance', 'rto', 'other']);
 const lineDiscountEnum = z.enum(['flat', 'percent', 'none']);

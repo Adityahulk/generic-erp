@@ -292,13 +292,15 @@ async function salesSummary(req, res) {
     );
 
     const topVehicles = await query(
-      `SELECT v.make, v.model, v.variant, COUNT(*)::int AS sold_count,
+      `SELECT COALESCE(v.item_name, CONCAT_WS(' ', v.make, v.model, v.variant)) AS item_name,
+              COALESCE(v.category, '') AS category,
+              COUNT(*)::int AS sold_count,
               COALESCE(SUM(i.total), 0)::bigint AS revenue
        FROM invoices i
        JOIN vehicles v ON v.id = i.vehicle_id
        WHERE i.company_id = $1 AND i.status = 'confirmed' AND i.is_deleted = FALSE
          AND i.invoice_date >= $2 AND i.invoice_date <= $3 ${branchFilter}
-       GROUP BY v.make, v.model, v.variant
+       GROUP BY COALESCE(v.item_name, CONCAT_WS(' ', v.make, v.model, v.variant)), COALESCE(v.category, '')
        ORDER BY sold_count DESC
        LIMIT 10`,
       params,
@@ -354,7 +356,8 @@ async function stockAging(req, res) {
     const company_id = req.user.company_id;
 
     const { rows } = await query(
-      `SELECT v.id, v.chassis_number, v.engine_number, v.make, v.model, v.variant,
+      `SELECT v.id, v.item_name, v.sku, v.category, v.unit_of_measure, v.quantity_in_stock,
+              v.chassis_number, v.engine_number, v.make, v.model, v.variant,
               v.color, v.year, v.purchase_price, v.selling_price, v.created_at,
               b.name AS branch_name,
               EXTRACT(DAY FROM NOW() - v.created_at)::int AS days_in_stock

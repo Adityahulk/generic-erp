@@ -22,6 +22,13 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+function summarizeItems(items = []) {
+  if (!items.length) return 'N/A';
+  const visible = items.slice(0, 2).map((item) => `${item.description}${Number(item.quantity) > 1 ? ` (×${item.quantity})` : ''}`);
+  if (items.length > 2) visible.push(`& ${items.length - 2} more`);
+  return visible.join(', ');
+}
+
 async function sendInvoiceWhatsApp(req, res) {
   try {
     const { invoiceId } = req.params;
@@ -46,13 +53,13 @@ async function sendInvoiceWhatsApp(req, res) {
       return res.status(400).json({ error: 'Customer has no phone number on record' });
     }
 
-    const vehicle = [inv.vehicle_make, inv.vehicle_model].filter(Boolean).join(' ') || 'N/A';
     const shareLink = generateShareLink('invoice', invoiceId, companyId);
     const variables = {
       customer_name: inv.customer_name || 'Customer',
-      company_name: inv.company_name || 'Our dealership',
+      company_name: inv.company_name || 'Our business',
       invoice_number: inv.invoice_number,
-      vehicle,
+      item_name: summarizeItems(data.items),
+      item_summary: summarizeItems(data.items),
       amount: fmtRupees(inv.total),
       share_link: shareLink,
       branch_phone: inv.branch_phone || inv.company_phone || 'N/A',
@@ -123,7 +130,6 @@ async function sendQuotationWhatsApp(req, res) {
       return res.status(400).json({ error: 'Customer has no phone number on record' });
     }
 
-    const vehicle = [qrow.vehicle_make, qrow.vehicle_model].filter(Boolean).join(' ') || 'N/A';
     const shareLink = generateShareLink('quotation', quotationId, companyId);
     const custName = qrow.customer_name_override || bundle.customer?.name || 'Customer';
 
@@ -132,9 +138,10 @@ async function sendQuotationWhatsApp(req, res) {
 
     const variables = {
       customer_name: custName,
-      company_name: co[0]?.name || 'Our dealership',
+      company_name: co[0]?.name || 'Our business',
       quotation_number: qrow.quotation_number,
-      vehicle,
+      item_name: summarizeItems(bundle.items),
+      item_summary: summarizeItems(bundle.items),
       amount: fmtRupees(qrow.total),
       valid_until: fmtDate(qrow.valid_until_date),
       share_link: shareLink,

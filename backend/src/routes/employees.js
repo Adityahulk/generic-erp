@@ -4,9 +4,11 @@ const { validateBody } = require('../middleware/validate');
 const { verifyToken } = require('../middleware/auth');
 const { requireMinRole, requireNotRole, requireRole } = require('../middleware/role');
 const ec = require('../controllers/employeesController');
+const { requireModule } = require('../middleware/moduleGuard');
 
 const router = Router();
 router.use(verifyToken);
+router.use(requireModule('employee_hr'));
 router.use(requireNotRole('ca'));
 
 const createSchema = z.object({

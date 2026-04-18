@@ -82,6 +82,12 @@ const updateCompanySchema = z.object({
   state_code: z.string().max(2).optional(),
   default_hsn_code: z.string().max(20).optional(),
   default_gst_rate: z.number().min(0).max(100).optional(),
+  item_terminology: z.string().max(100).optional(),
+  item_terminology_plural: z.string().max(100).optional(),
+  onboarding_completed: z.boolean().optional(),
+  invoice_defaults: z.any().optional(),
+  business_type: z.string().max(50).optional(),
+  business_config: z.any().optional(),
 }).transform((obj) => {
   // coerce string-typed default_gst_rate from form payloads
   if (typeof obj.default_gst_rate === 'string') {

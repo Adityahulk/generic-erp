@@ -25,10 +25,22 @@ import {
 } from '@/components/ui/dialog';
 import api from '@/lib/api';
 import useAuthStore from '@/store/authStore';
+import useConfigStore from '@/store/configStore';
+import useTerms from '@/hooks/useTerms';
 import { Building2, GitBranch, Users, Receipt, FileText, Loader2, Upload, Eye, EyeOff, RotateCcw, Plus, Pencil, UserCircle } from 'lucide-react';
 import InvoiceTemplates from '@/pages/InvoiceTemplates';
 import { toInputDate } from '@/lib/utils';
 import { toast } from 'sonner';
+
+const BUSINESS_TYPE_OPTIONS = [
+  { value: 'vehicle_dealer', label: 'Vehicle dealer' },
+  { value: 'pharmacy', label: 'Pharmacy' },
+  { value: 'electronics', label: 'Electronics' },
+  { value: 'furniture', label: 'Furniture' },
+  { value: 'hardware', label: 'Hardware / building materials' },
+  { value: 'general_trade', label: 'General trade' },
+  { value: 'custom', label: 'Custom' },
+];
 
 const INDIAN_STATES = [
   { code: '01', name: 'Jammu & Kashmir' }, { code: '02', name: 'Himachal Pradesh' },
@@ -53,27 +65,75 @@ const INDIAN_STATES = [
 
 // ──────────────────────────── Company Profile Tab ────────────────────────────
 function CompanyTab() {
-  const { user } = useAuthStore();
+  const { user, setCompany } = useAuthStore();
+  const terms = useTerms();
   const qc = useQueryClient();
   const [form, setForm] = useState(null);
+  const [fieldForm, setFieldForm] = useState({ field_label: '', field_type: 'text', field_options: '', is_required: false, show_in_list: false });
 
   const { data, isLoading } = useQuery({
     queryKey: ['company', user?.company_id],
     queryFn: () => api.get(`/companies/${user.company_id}`).then((r) => r.data.company),
     enabled: !!user?.company_id,
     onSuccess: (c) => {
-      if (!form) setForm({ name: c.name || '', gstin: c.gstin || '', address: c.address || '', phone: c.phone || '', email: c.email || '' });
+      if (!form) setForm({
+        name: c.name || '',
+        gstin: c.gstin || '',
+        address: c.address || '',
+        phone: c.phone || '',
+        email: c.email || '',
+        business_type: c.business_type || 'vehicle_dealer',
+        item_terminology: c.item_terminology || 'Product',
+        item_terminology_plural: c.item_terminology_plural || 'Products',
+        default_hsn_code: c.default_hsn_code || '',
+        default_gst_rate: Number(c.default_gst_rate || 18),
+      });
     },
+  });
+
+  const { data: itemFields = [] } = useQuery({
+    queryKey: ['item-field-definitions'],
+    queryFn: () => api.get('/vehicles/fields').then((r) => r.data.fields || []),
+    enabled: !!user?.company_id,
   });
 
   // Initialize form from data when loaded
   if (data && !form) {
-    setForm({ name: data.name || '', gstin: data.gstin || '', address: data.address || '', phone: data.phone || '', email: data.email || '' });
+    setForm({
+      name: data.name || '',
+      gstin: data.gstin || '',
+      address: data.address || '',
+      phone: data.phone || '',
+      email: data.email || '',
+      business_type: data.business_type || 'vehicle_dealer',
+      item_terminology: data.item_terminology || 'Product',
+      item_terminology_plural: data.item_terminology_plural || 'Products',
+      default_hsn_code: data.default_hsn_code || '',
+      default_gst_rate: Number(data.default_gst_rate || 18),
+    });
   }
 
   const updateMut = useMutation({
     mutationFn: (body) => api.patch(`/companies/${user.company_id}`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['company'] }),
+    onSuccess: async ({ data: response }) => {
+      qc.invalidateQueries({ queryKey: ['company'] });
+      setCompany(response.company);
+      await useConfigStore.getState().loadConfig();
+    },
+  });
+
+  const addFieldMut = useMutation({
+    mutationFn: (body) => api.post('/vehicles/fields', body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['item-field-definitions'] });
+      setFieldForm({ field_label: '', field_type: 'text', field_options: '', is_required: false, show_in_list: false });
+      toast.success('Custom field added');
+    },
+  });
+
+  const deleteFieldMut = useMutation({
+    mutationFn: (id) => api.delete(`/vehicles/fields/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['item-field-definitions'] }),
   });
 
   const logoMut = useMutation({
@@ -139,6 +199,49 @@ function CompanyTab() {
               <Label>Address</Label>
               <Textarea value={form.address} onChange={set('address')} rows={2} />
             </div>
+            <div className="space-y-1.5 md:col-span-2">
+              <Label>Business type (templates for labels and modules)</Label>
+              <Select
+                value={form.business_type || 'vehicle_dealer'}
+                onValueChange={(value) => setForm((prev) => ({ ...prev, business_type: value }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {BUSINESS_TYPE_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Changing type updates default terminology and module toggles. Use “Reset template” in API or clear overrides in business_config if needed.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>What do you call your items?</Label>
+              <Input value={form.item_terminology} onChange={set('item_terminology')} placeholder="Product" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Plural form</Label>
+              <Input value={form.item_terminology_plural} onChange={set('item_terminology_plural')} placeholder="Products" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Default HSN Code</Label>
+              <Input value={form.default_hsn_code} onChange={set('default_hsn_code')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Default GST Rate</Label>
+              <Select value={String(form.default_gst_rate)} onValueChange={(value) => setForm((prev) => ({ ...prev, default_gst_rate: Number(value) }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[0, 5, 12, 18, 28].map((rate) => <SelectItem key={rate} value={String(rate)}>{rate}%</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="md:col-span-2 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+              <p>Your inventory will show: “{form.item_terminology_plural || 'Products'} in stock”</p>
+              <p>Add button will say: “Add {form.item_terminology || 'Product'}”</p>
+              <p>Invoice will show: “Item Details”</p>
+            </div>
             <div className="md:col-span-2 flex justify-end">
               <Button type="submit" disabled={updateMut.isPending}>
                 {updateMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -148,6 +251,95 @@ function CompanyTab() {
             {updateMut.isSuccess && <p className="md:col-span-2 text-sm text-emerald-600">Saved successfully</p>}
             {updateMut.isError && <p className="md:col-span-2 text-sm text-destructive">{updateMut.error?.response?.data?.error || 'Failed to save'}</p>}
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Custom Item Fields</CardTitle>
+          <CardDescription>Add extra fields to track on your items without changing your setup later.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left py-2">Label</th>
+                  <th className="text-left py-2">Type</th>
+                  <th className="text-left py-2">Required</th>
+                  <th className="text-left py-2">Show in list</th>
+                  <th className="text-right py-2">Delete</th>
+                </tr>
+              </thead>
+              <tbody>
+                {itemFields.map((field) => (
+                  <tr key={field.id} className="border-b border-border/50">
+                    <td className="py-2">{field.field_label}</td>
+                    <td className="py-2">{field.field_type}</td>
+                    <td className="py-2">{field.is_required ? 'Yes' : 'No'}</td>
+                    <td className="py-2">{field.show_in_list ? 'Yes' : 'No'}</td>
+                    <td className="py-2 text-right">
+                      <Button variant="ghost" size="sm" onClick={() => deleteFieldMut.mutate(field.id)}>Delete</Button>
+                    </td>
+                  </tr>
+                ))}
+                {itemFields.length === 0 && (
+                  <tr><td className="py-4 text-muted-foreground" colSpan={5}>No custom fields yet.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="rounded-lg border border-border p-4 space-y-3">
+            <h4 className="font-medium">Add Field</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Field Label</Label>
+                <Input value={fieldForm.field_label} onChange={(e) => setFieldForm((prev) => ({ ...prev, field_label: e.target.value }))} placeholder="Expiry Date" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Field Type</Label>
+                <Select value={fieldForm.field_type} onValueChange={(value) => setFieldForm((prev) => ({ ...prev, field_type: value }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="text">Text</SelectItem>
+                    <SelectItem value="number">Number</SelectItem>
+                    <SelectItem value="date">Date</SelectItem>
+                    <SelectItem value="dropdown">Dropdown</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {fieldForm.field_type === 'dropdown' && (
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>Options</Label>
+                  <Textarea value={fieldForm.field_options} onChange={(e) => setFieldForm((prev) => ({ ...prev, field_options: e.target.value }))} placeholder={'One option per line'} rows={3} />
+                </div>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-4 text-sm">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={fieldForm.is_required} onChange={(e) => setFieldForm((prev) => ({ ...prev, is_required: e.target.checked }))} />
+                Required
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={fieldForm.show_in_list} onChange={(e) => setFieldForm((prev) => ({ ...prev, show_in_list: e.target.checked }))} />
+                Show in item list
+              </label>
+            </div>
+            <Button
+              onClick={() => addFieldMut.mutate({
+                field_key: fieldForm.field_label.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+                field_label: fieldForm.field_label,
+                field_type: fieldForm.field_type,
+                field_options: fieldForm.field_type === 'dropdown' ? fieldForm.field_options.split('\n').map((option) => option.trim()).filter(Boolean) : [],
+                is_required: fieldForm.is_required,
+                show_in_list: fieldForm.show_in_list,
+              })}
+              disabled={addFieldMut.isPending || !fieldForm.field_label.trim()}
+            >
+              Save Field
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -925,13 +1117,13 @@ function GSTTab() {
           </div>
 
           <div className="space-y-1.5">
-            <Label>Default HSN Code for Vehicles</Label>
+            <Label>Default HSN Code for New Items</Label>
             <Input
               value={form.default_hsn_code}
               onChange={(e) => setForm((p) => ({ ...p, default_hsn_code: e.target.value }))}
-              placeholder="e.g. 8703"
+              placeholder="e.g. 1006, 8517"
             />
-            <p className="text-xs text-muted-foreground">HSN 8703 = Motor cars and vehicles for transport of persons</p>
+            <p className="text-xs text-muted-foreground">Use your most common HSN so new items start with the right tax defaults.</p>
           </div>
 
           <div className="space-y-1.5">

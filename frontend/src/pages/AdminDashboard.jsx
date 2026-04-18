@@ -4,6 +4,7 @@ import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import api from '@/lib/api';
+import useTerms from '@/hooks/useTerms';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { IndianRupee, TrendingUp, Warehouse, AlertTriangle, Loader2 } from 'lucide-react';
 
@@ -44,6 +45,7 @@ function CustomTooltip({ active, payload }) {
 }
 
 export default function AdminDashboard() {
+  const terms = useTerms();
   const { data, isLoading, error } = useQuery({
     queryKey: ['admin-dashboard'],
     queryFn: () => api.get('/dashboard/admin').then((r) => r.data),
@@ -69,7 +71,7 @@ export default function AdminDashboard() {
   }
 
   const chartData = (data.top_selling_models || []).map((m) => ({
-    label: `${m.make} ${m.model}`,
+    label: m.item_name,
     sold_count: m.sold_count,
   }));
 
@@ -97,7 +99,7 @@ export default function AdminDashboard() {
           color={data.total_profit_this_month >= 0 ? 'text-emerald-600' : 'text-destructive'}
         />
         <StatCard
-          title="Total Stock"
+          title={`${terms.Items} in Stock`}
           value={data.total_stock}
           icon={Warehouse}
         />
@@ -146,7 +148,7 @@ export default function AdminDashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Top Selling Models</CardTitle>
+            <CardTitle className="text-base">Top Selling Products</CardTitle>
           </CardHeader>
           <CardContent>
             {chartData.length > 0 ? (
@@ -185,7 +187,7 @@ export default function AdminDashboard() {
                   <th className="text-left py-2 font-medium text-muted-foreground">Invoice #</th>
                   <th className="text-left py-2 font-medium text-muted-foreground">Date</th>
                   <th className="text-left py-2 font-medium text-muted-foreground">Customer</th>
-                  <th className="text-left py-2 font-medium text-muted-foreground">Vehicle</th>
+                  <th className="text-left py-2 font-medium text-muted-foreground">{terms.Item}</th>
                   <th className="text-right py-2 font-medium text-muted-foreground">Amount</th>
                   <th className="text-center py-2 font-medium text-muted-foreground">Status</th>
                 </tr>
@@ -196,7 +198,7 @@ export default function AdminDashboard() {
                     <td className="py-2 font-mono text-xs">{inv.invoice_number}</td>
                     <td className="py-2">{formatDate(inv.invoice_date)}</td>
                     <td className="py-2">{inv.customer_name || '—'}</td>
-                    <td className="py-2">{inv.vehicle_make ? `${inv.vehicle_make} ${inv.vehicle_model}` : '—'}</td>
+                    <td className="py-2">{inv.item_name ? `${inv.item_name}${inv.sku ? ` · ${inv.sku}` : ''}` : '—'}</td>
                     <td className="py-2 text-right font-medium">{formatCurrency(inv.total)}</td>
                     <td className="py-2 text-center">
                       <Badge variant={statusColors[inv.status] || 'secondary'}>{inv.status}</Badge>

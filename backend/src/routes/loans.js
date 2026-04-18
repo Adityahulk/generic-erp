@@ -4,9 +4,11 @@ const { validateBody } = require('../middleware/validate');
 const { verifyToken } = require('../middleware/auth');
 const { requireMinRole, requireNotRole, requireRole } = require('../middleware/role');
 const lc = require('../controllers/loansController');
+const { requireModule } = require('../middleware/moduleGuard');
 
 const router = Router();
 router.use(verifyToken);
+router.use(requireModule('loans'));
 
 const PAISE_HINT =
   'penalty_per_day must be in paise (integer). For ₹100/day, enter 10000.';

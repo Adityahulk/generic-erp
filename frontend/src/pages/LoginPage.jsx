@@ -46,7 +46,7 @@ export default function LoginPage() {
             alt="Mavidya Group"
             className="h-24 mx-auto mb-4 object-contain"
           />
-          <p className="text-zinc-400 text-sm">Vehicle Distribution ERP</p>
+          <p className="text-zinc-400 text-sm">BizERP — multi-industry GST ERP</p>
         </div>
 
         <Card>

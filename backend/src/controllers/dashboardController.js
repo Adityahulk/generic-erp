@@ -45,7 +45,8 @@ async function adminDashboard(req, res) {
     const recentInvoices = await query(
       `SELECT i.id, i.invoice_number, i.invoice_date, i.total, i.status,
               c.name AS customer_name,
-              v.make AS vehicle_make, v.model AS vehicle_model
+              COALESCE(v.item_name, CONCAT_WS(' ', v.make, v.model, v.variant)) AS item_name,
+              COALESCE(v.sku, v.chassis_number) AS sku
        FROM invoices i
        LEFT JOIN customers c ON c.id = i.customer_id
        LEFT JOIN vehicles v ON v.id = i.vehicle_id
@@ -63,12 +64,13 @@ async function adminDashboard(req, res) {
     );
 
     const topModels = await query(
-      `SELECT v.make, v.model, COUNT(*)::int AS sold_count
+      `SELECT COALESCE(v.item_name, CONCAT_WS(' ', v.make, v.model, v.variant)) AS item_name,
+              COUNT(*)::int AS sold_count
        FROM invoices i
        JOIN vehicles v ON v.id = i.vehicle_id
        WHERE i.company_id = $1 AND i.status = 'confirmed' AND i.is_deleted = FALSE
          AND i.invoice_date >= $2 AND i.invoice_date <= $3
-       GROUP BY v.make, v.model
+       GROUP BY COALESCE(v.item_name, CONCAT_WS(' ', v.make, v.model, v.variant))
        ORDER BY sold_count DESC
        LIMIT 10`,
       [company_id, monthStart, monthEnd],

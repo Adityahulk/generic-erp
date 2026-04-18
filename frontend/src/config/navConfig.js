@@ -60,7 +60,15 @@ export const NAV_CONFIG = {
   ],
 };
 
-export function navItemsForRole(role) {
+const MODULE_BY_PATH = {
+  '/loans': 'loans',
+  '/quotations': 'quotations',
+  '/expenses': 'expenses',
+  '/my-attendance': 'attendance',
+  '/attendance': 'attendance',
+};
+
+export function navItemsForRole(role, modules = null) {
   const adminNav = NAV_CONFIG.company_admin;
   if (role === 'super_admin') {
     return adminNav.map((item) => ({
@@ -70,11 +78,17 @@ export function navItemsForRole(role) {
     }));
   }
   const raw = NAV_CONFIG[role] ?? NAV_CONFIG.staff;
-  return raw.map((item) => ({
+  const items = raw.map((item) => ({
     to: item.path,
     label: item.label,
     icon: ICON_MAP[item.icon] || LayoutDashboard,
   }));
+  if (!modules || typeof modules !== 'object') return items;
+  return items.filter(({ to }) => {
+    const mod = MODULE_BY_PATH[to];
+    if (!mod) return true;
+    return modules[mod] !== false;
+  });
 }
 
 /** Desktop top bar: keep a short primary row; rest go under "More" (reduces clutter). */
@@ -86,8 +100,8 @@ const DESKTOP_PRIMARY_PATHS = {
 /**
  * @returns {{ primary: ReturnType<navItemsForRole>, overflow: ReturnType<navItemsForRole> }}
  */
-export function splitNavForDesktopBar(role) {
-  const items = navItemsForRole(role);
+export function splitNavForDesktopBar(role, modules = null) {
+  const items = navItemsForRole(role, modules);
   const key = role === 'super_admin' ? 'company_admin' : role;
   const primaryPaths = DESKTOP_PRIMARY_PATHS[key];
   if (!primaryPaths?.length) {

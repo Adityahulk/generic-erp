@@ -4,9 +4,11 @@ const { validateBody } = require('../middleware/validate');
 const { verifyToken } = require('../middleware/auth');
 const { requireMinRole, requireNotRole } = require('../middleware/role');
 const ec = require('../controllers/expensesController');
+const { requireModule } = require('../middleware/moduleGuard');
 
 const router = Router();
 router.use(verifyToken);
+router.use(requireModule('expenses'));
 
 const createExpenseSchema = z.object({
   category: z.string().min(1, 'Category required'),

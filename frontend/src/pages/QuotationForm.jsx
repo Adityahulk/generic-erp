@@ -27,6 +27,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import QuotationPreviewModal from '@/components/QuotationPreviewModal';
 import api from '@/lib/api';
 import useAuthStore from '@/store/authStore';
+import useTerms from '@/hooks/useTerms';
 import { computeQuotationTotals, gstStateFromGstin } from '@/lib/quotationTotals';
 import { formatCurrency, randomClientId } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -39,10 +40,6 @@ const DEFAULT_TERMS = `1. This quotation is valid until the date shown under "Va
 3. GST will be charged as applicable at the time of billing.
 4. Delivery period: 7-15 working days from the date of order confirmation.
 5. 50% advance required to confirm the booking.`;
-
-const VEHICLE_COLORS = [
-  'White', 'Black', 'Silver', 'Grey', 'Red', 'Blue', 'Brown', 'Beige', 'Green', 'Other',
-];
 
 const GST_OPTIONS = [0, 5, 12, 18, 28];
 
@@ -82,6 +79,7 @@ function addDaysISO(days) {
 }
 
 export default function QuotationFormPage() {
+  const termsLabel = useTerms();
   const { id: editId } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -97,7 +95,7 @@ export default function QuotationFormPage() {
   const [vehSearch, setVehSearch] = useState('');
   const [spec, setSpec] = useState({ make: '', model: '', variant: '', color: '', year: '' });
 
-  const [lines, setLines] = useState([newLine({ item_type: 'vehicle', hsn_code: '8703', gst_rate: 28 })]);
+  const [lines, setLines] = useState([newLine({ item_type: 'other', hsn_code: '', gst_rate: 18 })]);
   const [headerDiscType, setHeaderDiscType] = useState('flat');
   const [headerDiscRupees, setHeaderDiscRupees] = useState('');
   const [headerDiscPercent, setHeaderDiscPercent] = useState('');
@@ -219,17 +217,18 @@ export default function QuotationFormPage() {
 
   useEffect(() => {
     if (selectedVehicle && vehicleMode === 'stock') {
-      const desc = [selectedVehicle.make, selectedVehicle.model, selectedVehicle.variant].filter(Boolean).join(' ');
+      const desc = selectedVehicle.item_name || [selectedVehicle.make, selectedVehicle.model, selectedVehicle.variant].filter(Boolean).join(' ');
       setLines((prev) => {
         const next = [...prev];
-        const idx = next.findIndex((l) => l.item_type === 'vehicle');
+        const idx = next.findIndex((l) => l.item_type === 'other' && !l.description);
         const rupees = (Number(selectedVehicle.selling_price) || 0) / 100;
         const row = {
-          ...(idx >= 0 ? next[idx] : newLine({ item_type: 'vehicle' })),
-          item_type: 'vehicle',
-          description: desc || 'Vehicle',
-          hsn_code: '8703',
-          gst_rate: 28,
+          ...(idx >= 0 ? next[idx] : newLine({ item_type: 'other' })),
+          item_type: 'other',
+          description: desc || termsLabel.item,
+          hsn_code: selectedVehicle.hsn_code || '',
+          gst_rate: Number(selectedVehicle.default_gst_rate || 18),
+          vehicle_id: selectedVehicle.id,
           unit_price_rupees: String(rupees),
         };
         if (idx >= 0) next[idx] = row;
@@ -237,7 +236,7 @@ export default function QuotationFormPage() {
         return next;
       });
     }
-  }, [selectedVehicle, vehicleMode]);
+  }, [selectedVehicle, vehicleMode, termsLabel.item]);
 
   const interstate = useMemo(() => {
     const cg = company?.gstin;
@@ -399,43 +398,37 @@ export default function QuotationFormPage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-base">Vehicle</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Items</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
-                <Button type="button" size="sm" variant={vehicleMode === 'stock' ? 'default' : 'outline'} onClick={() => setVehicleMode('stock')}>From stock</Button>
-                <Button type="button" size="sm" variant={vehicleMode === 'spec' ? 'default' : 'outline'} onClick={() => { setVehicleMode('spec'); setVehicleId(''); }}>Specific model (not in stock)</Button>
+                <Button type="button" size="sm" variant={vehicleMode === 'stock' ? 'default' : 'outline'} onClick={() => setVehicleMode('stock')}>Select from inventory</Button>
+                <Button type="button" size="sm" variant={vehicleMode === 'spec' ? 'default' : 'outline'} onClick={() => { setVehicleMode('spec'); setVehicleId(''); }}>Free-text item</Button>
               </div>
               {vehicleMode === 'stock' ? (
                 <div className="space-y-2">
-                  <Label>Search vehicle</Label>
-                  <Input value={vehSearch} onChange={(e) => setVehSearch(e.target.value)} placeholder="Make / model / chassis" />
+                  <Label>Search item</Label>
+                  <Input value={vehSearch} onChange={(e) => setVehSearch(e.target.value)} placeholder="Name / SKU / category" />
                   <Select className="w-full" value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>
                     <option value="">Select…</option>
                     {(vehResults || []).map((v) => (
-                      <option key={v.id} value={v.id}>{v.make} {v.model} — {v.chassis_number}</option>
+                      <option key={v.id} value={v.id}>{v.item_name || `${v.make || ''} ${v.model || ''}`.trim()} — {v.sku || v.chassis_number || 'No code'}</option>
                     ))}
                   </Select>
                   {selectedVehicle && (
                     <div className="text-sm text-muted-foreground rounded-md border p-3 bg-muted/30">
-                      <p><strong>{selectedVehicle.make}</strong> {selectedVehicle.model} {selectedVehicle.variant}</p>
-                      <p>Chassis: {selectedVehicle.chassis_number} · Color: {selectedVehicle.color} · Year: {selectedVehicle.year}</p>
+                      <p><strong>{selectedVehicle.item_name || selectedVehicle.make}</strong></p>
+                      <p>{selectedVehicle.sku || selectedVehicle.chassis_number || 'No code'} · {selectedVehicle.category || 'Uncategorized'} · {selectedVehicle.unit_of_measure || 'Pcs'}</p>
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="grid sm:grid-cols-2 gap-3">
-                  <div><Label>Make</Label><Input value={spec.make} onChange={(e) => setSpec((p) => ({ ...p, make: e.target.value }))} /></div>
-                  <div><Label>Model</Label><Input value={spec.model} onChange={(e) => setSpec((p) => ({ ...p, model: e.target.value }))} /></div>
-                  <div><Label>Variant</Label><Input value={spec.variant} onChange={(e) => setSpec((p) => ({ ...p, variant: e.target.value }))} /></div>
-                  <div>
-                    <Label>Color</Label>
-                    <Select value={spec.color} onChange={(e) => setSpec((p) => ({ ...p, color: e.target.value }))}>
-                      <option value="">Select…</option>
-                      {VEHICLE_COLORS.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </Select>
-                  </div>
-                  <div><Label>Year</Label><Input type="number" value={spec.year} onChange={(e) => setSpec((p) => ({ ...p, year: e.target.value }))} /></div>
-                  <p className="sm:col-span-2 text-xs text-muted-foreground">Chassis number will be assigned at time of billing.</p>
+                  <div><Label>{termsLabel.Item} name</Label><Input value={spec.model} onChange={(e) => setSpec((p) => ({ ...p, model: e.target.value }))} /></div>
+                  <div><Label>Brand</Label><Input value={spec.make} onChange={(e) => setSpec((p) => ({ ...p, make: e.target.value }))} /></div>
+                  <div><Label>Variant / Spec</Label><Input value={spec.variant} onChange={(e) => setSpec((p) => ({ ...p, variant: e.target.value }))} /></div>
+                  <div><Label>Category</Label><Input value={spec.color} onChange={(e) => setSpec((p) => ({ ...p, color: e.target.value }))} /></div>
+                  <div><Label>Unit</Label><Input value={spec.year} onChange={(e) => setSpec((p) => ({ ...p, year: e.target.value }))} /></div>
+                  <p className="sm:col-span-2 text-xs text-muted-foreground">Use this when you want to quote an item without linking existing inventory.</p>
                 </div>
               )}
             </CardContent>
@@ -445,11 +438,11 @@ export default function QuotationFormPage() {
             <CardHeader className="space-y-2">
               <CardTitle className="text-base">Line items</CardTitle>
               <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" variant="outline" onClick={() => addRow('accessory')}>
-                  <Plus className="h-3 w-3 mr-1" /> Accessories
+                <Button type="button" size="sm" variant="outline" onClick={() => addRow('other')}>
+                  <Plus className="h-3 w-3 mr-1" /> Service Charge
                 </Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => addRow('insurance')}>Insurance</Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => addRow('rto')}>RTO</Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => addRow('other')}>Delivery</Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => addRow('other')}>Labour</Button>
                 <Button type="button" size="sm" variant="outline" onClick={() => addRow('other')}>Other</Button>
               </div>
             </CardHeader>

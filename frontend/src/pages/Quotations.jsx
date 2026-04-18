@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import BulkImport from '@/components/BulkImport';
 import WhatsAppSendDialog, { WhatsAppIconButton } from '@/components/WhatsAppSendDialog';
 import api from '@/lib/api';
+import useTerms from '@/hooks/useTerms';
 import { usePermissions } from '@/hooks/usePermissions';
 import ReadOnlyBadge from '@/components/ReadOnlyBadge';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -38,6 +39,7 @@ const STATUS_BADGE = {
 };
 
 export default function QuotationsPage() {
+  const terms = useTerms();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { canWrite, isCA } = usePermissions();
@@ -158,7 +160,7 @@ export default function QuotationsPage() {
               <TableHead>Date</TableHead>
               <TableHead>Valid Until</TableHead>
               <TableHead>Customer</TableHead>
-              <TableHead>Vehicle</TableHead>
+              <TableHead>{terms.Item}</TableHead>
               <TableHead className="text-right">Amount</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -188,7 +190,7 @@ export default function QuotationsPage() {
                     <div className="text-xs text-muted-foreground">{q.customer_display_phone}</div>
                   </TableCell>
                   <TableCell className="max-w-[160px] truncate">
-                    {q.vehicle_make ? `${q.vehicle_make} ${q.vehicle_model}` : (
+                    {q.item_name ? `${q.item_name}${q.sku ? ` · ${q.sku}` : ''}` : (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>

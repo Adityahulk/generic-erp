@@ -4,7 +4,7 @@ const { query } = require('../config/db');
 const PLACEHOLDER_RE = /\{(\w+)\}/g;
 
 const ALL_KNOWN_KEYS = new Set([
-  'customer_name', 'vehicle', 'amount', 'due_date', 'overdue_days', 'penalty', 'penalty_per_day',
+  'customer_name', 'item_name', 'item_summary', 'amount', 'due_date', 'overdue_days', 'penalty', 'penalty_per_day',
   'invoice_number', 'quotation_number', 'share_link', 'valid_until', 'branch_phone', 'company_name',
 ]);
 
@@ -257,11 +257,11 @@ function extractPlaceholders(body) {
 }
 
 const REQUIRED_BY_TYPE = {
-  loan_overdue: ['customer_name', 'vehicle', 'due_date', 'overdue_days', 'penalty', 'branch_phone', 'company_name'],
-  loan_due_soon: ['customer_name', 'vehicle', 'due_date', 'branch_phone', 'company_name'],
-  invoice_share: ['customer_name', 'company_name', 'invoice_number', 'vehicle', 'amount', 'share_link', 'branch_phone'],
-  quotation_share: ['customer_name', 'company_name', 'quotation_number', 'vehicle', 'amount', 'valid_until', 'share_link', 'branch_phone'],
-  loan_penalty_alert: ['customer_name', 'vehicle', 'due_date', 'overdue_days', 'penalty_per_day', 'penalty', 'branch_phone', 'company_name'],
+  loan_overdue: ['customer_name', 'item_name', 'due_date', 'overdue_days', 'penalty', 'branch_phone', 'company_name'],
+  loan_due_soon: ['customer_name', 'item_name', 'due_date', 'branch_phone', 'company_name'],
+  invoice_share: ['customer_name', 'company_name', 'invoice_number', 'item_summary', 'amount', 'share_link', 'branch_phone'],
+  quotation_share: ['customer_name', 'company_name', 'quotation_number', 'item_summary', 'amount', 'valid_until', 'share_link', 'branch_phone'],
+  loan_penalty_alert: ['customer_name', 'item_name', 'due_date', 'overdue_days', 'penalty_per_day', 'penalty', 'branch_phone', 'company_name'],
 };
 
 function validateTemplatePlaceholders(messageType, newBody) {
