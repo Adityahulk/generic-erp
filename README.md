@@ -44,6 +44,8 @@ docker compose exec api npm run migrate
 docker compose exec api npm run seed
 ```
 
+**Docker + HTTPS (production):** `docker-compose.yml` maps **80** and **443**, uses `nginx/nginx.conf` (TLS), and bind-mounts host **`/etc/letsencrypt`** and **`/var/www/certbot`**. Put `CORS_ORIGIN` and `PUBLIC_APP_URL` to your real `https://` URL in `.env` (see root `.env.example`). **First-time certs:** use HTTP-only briefly so port 80 can serve ACME, then obtain certs (e.g. `certbot certonly --webroot -w /var/www/certbot -d microtechnique.in -d www.microtechnique.in` on the host with `server_name` matching `nginx.conf`), verify files under `/etc/letsencrypt/live/microtechnique.in/`, then start the full stack. Without real certs on the host, the nginx container will fail to load. For **local dev without TLS**, point the nginx service at `nginx/nginx-no-ssl.conf`, drop the `443` port and the two TLS bind mounts, and use `http://` in `.env`.
+
 **Option B — System-installed:**
 
 ```bash
