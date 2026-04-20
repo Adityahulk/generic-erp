@@ -32,12 +32,18 @@ const DEFAULT_LAYOUT = {
   show_loan_summary: false,
   footer_text: '',
   bank_details: '',
+  seller_name_override: '',
+  seller_address_override: '',
+  seller_phone_override: '',
+  seller_email_override: '',
+  seller_gstin_override: '',
   logo_asset: 'company_upload',
   signature_asset: 'company_upload',
   signatory_title: 'Authorised Signatory',
   original_copy_label: 'ORIGINAL FOR RECIPIENT',
   ship_to_same_as_billing: true,
   computer_gen_subnote: 'E. & O. E.',
+  show_company_email: false,
 };
 
 function mergeLayout(row) {
@@ -381,6 +387,91 @@ export default function InvoiceTemplates() {
                 </div>
               </div>
 
+              <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+                <h4 className="text-sm font-medium">Seller on invoice (letterhead)</h4>
+                <p className="text-xs text-muted-foreground">
+                  Optional. Leave fields blank to use your company profile (Settings → company). What you enter here is saved only on this template and appears on PDFs that use it.
+                </p>
+                <div className="space-y-2">
+                  <Label className="text-xs">Legal / trade name</Label>
+                  <Input
+                    value={layoutForm.seller_name_override || ''}
+                    onChange={(e) => setLayoutForm((p) => ({ ...p, seller_name_override: e.target.value }))}
+                    placeholder="Blank = company name from profile"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Registered address</Label>
+                  <Textarea
+                    rows={4}
+                    value={layoutForm.seller_address_override || ''}
+                    onChange={(e) => setLayoutForm((p) => ({ ...p, seller_address_override: e.target.value }))}
+                    placeholder="Blank = address from company profile"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs">Phone</Label>
+                    <Input
+                      value={layoutForm.seller_phone_override || ''}
+                      onChange={(e) => setLayoutForm((p) => ({ ...p, seller_phone_override: e.target.value }))}
+                      placeholder="Blank = profile phone"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Email</Label>
+                    <Input
+                      value={layoutForm.seller_email_override || ''}
+                      onChange={(e) => setLayoutForm((p) => ({ ...p, seller_email_override: e.target.value }))}
+                      placeholder="Blank = profile email"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">GSTIN</Label>
+                  <Input
+                    value={layoutForm.seller_gstin_override || ''}
+                    onChange={(e) => setLayoutForm((p) => ({ ...p, seller_gstin_override: e.target.value }))}
+                    placeholder="Blank = profile GSTIN"
+                    className="font-mono"
+                  />
+                </div>
+                {editing?.template_key === 'trade' && (
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!layoutForm.show_company_email}
+                      onChange={(e) => setLayoutForm((p) => ({ ...p, show_company_email: e.target.checked }))}
+                    />
+                    <span>Show email next to phone (trade header)</span>
+                  </label>
+                )}
+              </div>
+
+              <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+                <h4 className="text-sm font-medium">Bank details on invoice</h4>
+                <p className="text-xs text-muted-foreground">
+                  Shown in the bank section when enabled. Use line breaks; use a line with only <span className="font-mono">---</span> to split into two columns on the trade layout.
+                </p>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!layoutForm.show_bank_details}
+                    onChange={(e) => setLayoutForm((p) => ({ ...p, show_bank_details: e.target.checked }))}
+                  />
+                  <span>Show bank details on PDF</span>
+                </label>
+                <div className="space-y-2">
+                  <Label className="text-xs">Bank accounts &amp; IFSC (printed text)</Label>
+                  <Textarea
+                    rows={5}
+                    placeholder="e.g. SBI A/C … IFSC …&#10;---&#10;RBL A/C …"
+                    value={layoutForm.bank_details || ''}
+                    onChange={(e) => setLayoutForm((p) => ({ ...p, bank_details: e.target.value }))}
+                  />
+                </div>
+              </div>
+
               <div className="space-y-3">
                 <h4 className="text-sm font-medium">Layout</h4>
                 <div className="space-y-2 text-sm">
@@ -388,7 +479,6 @@ export default function InvoiceTemplates() {
                     ['show_logo', 'Show company logo on invoice'],
                     ['show_signature', 'Show digital signature'],
                     ['show_vehicle_details_block', 'Show vehicle details block'],
-                    ['show_bank_details', 'Show bank details'],
                     ['show_terms', 'Show terms & conditions'],
                     ['show_loan_summary', 'Show loan summary'],
                     ['ship_to_same_as_billing', 'Ship-to same as bill-to (trade layout)'],
@@ -453,15 +543,6 @@ export default function InvoiceTemplates() {
                     </div>
                   </>
                 )}
-                <div className="space-y-2">
-                  <Label>Bank details</Label>
-                  <Textarea
-                    rows={3}
-                    placeholder="Bank name, account, IFSC…"
-                    value={layoutForm.bank_details || ''}
-                    onChange={(e) => setLayoutForm((p) => ({ ...p, bank_details: e.target.value }))}
-                  />
-                </div>
               </div>
 
               <div className="flex flex-wrap gap-2 pt-2 border-t">

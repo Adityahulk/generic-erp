@@ -42,6 +42,23 @@ function mergeLayout(templateRow) {
   return { ...DEFAULT_LAYOUT, ...cfg };
 }
 
+/** Non-empty per-template fields override company snapshot on PDF/HTML (all invoice layouts). */
+function applyLayoutSellerOverrides(inv, L) {
+  if (!inv || typeof inv !== 'object') return inv;
+  const next = { ...inv };
+  const apply = (layoutVal, key) => {
+    if (layoutVal == null) return;
+    const s = typeof layoutVal === 'string' ? layoutVal.trim() : String(layoutVal).trim();
+    if (s) next[key] = typeof layoutVal === 'string' ? layoutVal.trim() : s;
+  };
+  apply(L.seller_name_override, 'company_name');
+  apply(L.seller_address_override, 'company_address');
+  apply(L.seller_phone_override, 'company_phone');
+  apply(L.seller_email_override, 'company_email');
+  apply(L.seller_gstin_override, 'company_gstin');
+  return next;
+}
+
 function esc(s) {
   if (s == null || s === '') return '';
   return String(s)
@@ -263,8 +280,8 @@ function splitBankTwoColumns(raw) {
 }
 
 function buildTradeInvoiceHtml({ invoice: inv, items }, templateRow) {
-  const invN = inv;
   const L = mergeLayout(templateRow);
+  const invN = applyLayoutSellerOverrides(inv, L);
   const tplPath = path.join(TEMPLATE_DIR, 'template_trade.html');
   let html = fs.readFileSync(tplPath, 'utf8');
   const companyId = invN.company_id;
@@ -512,12 +529,12 @@ function buildTradeInvoiceHtml({ invoice: inv, items }, templateRow) {
 }
 
 function buildStandardInvoiceHtml({ invoice: inv, items }, templateRow) {
-  const invN = inv;
   const L = mergeLayout(templateRow);
   const key = templateRow?.template_key === 'simple' ? 'simple' : templateRow?.template_key === 'trade' ? 'trade' : 'standard';
   if (key === 'trade') {
-    return buildTradeInvoiceHtml({ invoice: invN, items }, templateRow);
+    return buildTradeInvoiceHtml({ invoice: inv, items }, templateRow);
   }
+  const invN = applyLayoutSellerOverrides(inv, L);
   const tplPath = path.join(TEMPLATE_DIR, key === 'simple' ? 'template_simple.html' : 'template_standard.html');
   let html = fs.readFileSync(tplPath, 'utf8');
 
@@ -774,6 +791,7 @@ function buildDummyInvoiceData() {
 
 module.exports = {
   mergeLayout,
+  applyLayoutSellerOverrides,
   fetchInvoiceTemplateRow,
   buildStandardInvoiceHtml,
   buildDummyInvoiceData,

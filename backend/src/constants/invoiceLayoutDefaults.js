@@ -13,6 +13,12 @@ const DEFAULT_LAYOUT = {
   show_loan_summary: false,
   footer_text: '',
   bank_details: '',
+  /** Optional: when set, overrides company profile for this template only (letterhead / GST print). */
+  seller_name_override: '',
+  seller_address_override: '',
+  seller_phone_override: '',
+  seller_email_override: '',
+  seller_gstin_override: '',
   /** company_upload | mvg_group — same file as website /assets/mvg-logo.png, bundled for PDFs */
   logo_asset: 'company_upload',
   /** company_upload | rudra_proprietor | mavidya_director — preset PNGs in assets/invoice-signatures */
