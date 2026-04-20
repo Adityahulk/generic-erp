@@ -277,7 +277,7 @@ cd /home/deploy/vehicle-erp
 | `PUBLIC_APP_URL` | No | `CORS_ORIGIN` | Base URL embedded in invoice/quotation share links for WhatsApp |
 | `SHARE_SECRET` | No | `JWT_SECRET` | Secret for signing share-link JWTs |
 | `TWO_FACTOR_API_KEY` | No | — | 2Factor.in API key for SMS |
-| `TAXPRO_ENV` | No | `sandbox` | `sandbox` or `production` (default API host for e-invoice / e-way) |
+| `TAXPRO_ENV` | No | `sandbox` | `sandbox` or `production` (case-insensitive; switches default host + e-way endpoint paths) |
 | `TAXPRO_API_HOST` | No | — | Override base URL (defaults: sandbox `https://gstsandbox.charteredinfo.com`, production `https://einvapi.charteredinfo.com`) |
 | `TAXPRO_ASPID` | No* | — | ASP ID from TaxPro. *Required for IRN / e-way |
 | `TAXPRO_PASSWORD` | No* | — | ASP password. *Required for IRN / e-way |
@@ -286,6 +286,11 @@ cd /home/deploy/vehicle-erp
 | `TAXPRO_EWB_USER_NAME` | No* | — | E-way portal user (`username` on auth) |
 | `TAXPRO_EWB_PASSWORD` | No* | — | E-way password (`ewbpwd`) |
 | `TAXPRO_QR_CODE_SIZE` | No | `250` | IRN QR size query parameter |
+| `TAXPRO_EINV_AUTH_PATH` | No | `/eivital/dec/v1.04/auth` | Override e-invoice auth path |
+| `TAXPRO_EINV_INVOICE_PATH` | No | `/eicore/dec/v1.03/Invoice` | Override e-invoice generate path |
+| `TAXPRO_EINV_CANCEL_PATH` | No | `/eicore/dec/v1.03/Invoice/Cancel` | Override e-invoice cancel path |
+| `TAXPRO_EWB_AUTH_PATH` | No | env-based | Override e-way auth path |
+| `TAXPRO_EWB_API_PATH` | No | env-based | Override e-way API path (`GENEWAYBILL`, `CANEWB`, etc actions) |
 
 ### E-Invoice & E-Way Bill (TaxPro GSP)
 
@@ -295,6 +300,13 @@ Optional. When **TaxPro ASP credentials and e-invoice user/password** are set, b
 |-------------|--------------------------------------------------|
 | Sandbox (`TAXPRO_ENV=sandbox`) | `https://gstsandbox.charteredinfo.com` |
 | Production (`TAXPRO_ENV=production`) | `https://einvapi.charteredinfo.com` |
+
+Default endpoint paths:
+
+| Environment | E-Invoice Auth | E-Invoice Generate | E-Invoice Cancel | E-Way Auth | E-Way API |
+|-------------|----------------|--------------------|------------------|------------|-----------|
+| Sandbox | `/eivital/dec/v1.04/auth` | `/eicore/dec/v1.03/Invoice` | `/eicore/dec/v1.03/Invoice/Cancel` | `/ewaybillapi/dec/v1.03/auth` | `/ewaybillapi/dec/v1.03/ewayapi` |
+| Production | `/eivital/dec/v1.04/auth` | `/eicore/dec/v1.03/Invoice` | `/eicore/dec/v1.03/Invoice/Cancel` | `/v1.03/dec/auth` | `/v1.03/dec/ewayapi` |
 
 - TaxPro overview: [TaxPro GSP API](https://gsthelp.charteredinfo.com/ucl/taxpro_gsp_api.htm)
 

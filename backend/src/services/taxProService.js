@@ -8,6 +8,13 @@ const redis = require('../config/redis');
 
 const SANDBOX_HOST = 'https://gstsandbox.charteredinfo.com';
 const PRODUCTION_HOST = 'https://einvapi.charteredinfo.com';
+const SANDBOX_EWB_AUTH_PATH = '/ewaybillapi/dec/v1.03/auth';
+const SANDBOX_EWB_API_PATH = '/ewaybillapi/dec/v1.03/ewayapi';
+const PRODUCTION_EWB_AUTH_PATH = '/v1.03/dec/auth';
+const PRODUCTION_EWB_API_PATH = '/v1.03/dec/ewayapi';
+const EINV_AUTH_PATH = '/eivital/dec/v1.04/auth';
+const EINV_INVOICE_PATH = '/eicore/dec/v1.03/Invoice';
+const EINV_CANCEL_PATH = '/eicore/dec/v1.03/Invoice/Cancel';
 
 const REDIS_EINV_PREFIX = 'taxpro:einv:auth:';
 const REDIS_EWB_PREFIX = 'taxpro:ewb:auth:';
@@ -17,10 +24,12 @@ const memoryEinv = new Map();
 const memoryEwb = new Map();
 
 function getConfig() {
-  const isProduction = process.env.TAXPRO_ENV === 'production';
+  const env = String(process.env.TAXPRO_ENV || 'sandbox').trim().toLowerCase();
+  const isProduction = env === 'production';
   return {
     host: (process.env.TAXPRO_API_HOST || '').trim() || (isProduction ? PRODUCTION_HOST : SANDBOX_HOST),
     isProduction,
+    env,
     aspid: (process.env.TAXPRO_ASPID || '').trim(),
     password: (process.env.TAXPRO_PASSWORD || '').trim(),
     einvUser: (process.env.TAXPRO_EINV_USER_NAME || process.env.TAXPRO_USER_NAME || '').trim(),
@@ -30,7 +39,24 @@ function getConfig() {
     qrCodeSize: (process.env.TAXPRO_QR_CODE_SIZE || '250').trim(),
     ewbGenAction: (process.env.TAXPRO_EWB_GEN_ACTION || 'GENEWAYBILL').trim(),
     ewbCancelAction: (process.env.TAXPRO_EWB_CANCEL_ACTION || 'CANEWB').trim(),
+    einvAuthPath: (process.env.TAXPRO_EINV_AUTH_PATH || EINV_AUTH_PATH).trim(),
+    einvInvoicePath: (process.env.TAXPRO_EINV_INVOICE_PATH || EINV_INVOICE_PATH).trim(),
+    einvCancelPath: (process.env.TAXPRO_EINV_CANCEL_PATH || EINV_CANCEL_PATH).trim(),
+    ewbAuthPath: (
+      process.env.TAXPRO_EWB_AUTH_PATH
+      || (isProduction ? PRODUCTION_EWB_AUTH_PATH : SANDBOX_EWB_AUTH_PATH)
+    ).trim(),
+    ewbApiPath: (
+      process.env.TAXPRO_EWB_API_PATH
+      || (isProduction ? PRODUCTION_EWB_API_PATH : SANDBOX_EWB_API_PATH)
+    ).trim(),
   };
+}
+
+function joinHostAndPath(host, endpointPath) {
+  const h = String(host || '').trim().replace(/\/+$/, '');
+  const p = `/${String(endpointPath || '').trim().replace(/^\/+/, '')}`;
+  return `${h}${p}`;
 }
 
 function isTaxProEnabled() {
@@ -218,7 +244,7 @@ async function getEInvoiceAuthToken(sellerGstin) {
     User_name: c.einvUser,
     eInvPwd: c.einvPwd,
   });
-  const url = `${c.host}/eivital/dec/v1.04/auth?${q.toString()}`;
+  const url = `${joinHostAndPath(c.host, c.einvAuthPath)}?${q.toString()}`;
   const response = await fetch(url, { method: 'GET', headers: { Accept: 'application/json' } });
   const text = await response.text();
   let data = {};
@@ -262,7 +288,7 @@ async function getEwbAuthToken(gstinArg) {
     username: c.ewbUser,
     ewbpwd: c.ewbPwd,
   });
-  const url = `${c.host}/ewaybillapi/dec/v1.03/auth?${q.toString()}`;
+  const url = `${joinHostAndPath(c.host, c.ewbAuthPath)}?${q.toString()}`;
   const response = await fetch(url, { method: 'GET', headers: { Accept: 'application/json' } });
   const text = await response.text();
   let data = {};
@@ -440,7 +466,7 @@ async function generateIRN(_companyId, invoiceData) {
     QrCodeSize: c.qrCodeSize,
     User_name: c.einvUser,
   });
-  const url = `${c.host}/eicore/dec/v1.03/Invoice?${q.toString()}`;
+  const url = `${joinHostAndPath(c.host, c.einvInvoicePath)}?${q.toString()}`;
 
   const response = await fetch(url, {
     method: 'POST',
@@ -501,7 +527,7 @@ async function cancelIRN(_companyId, irn, reason, remark, userGstin) {
     AuthToken: authToken,
     User_name: c.einvUser,
   });
-  const url = `${c.host}/eicore/dec/v1.03/Invoice/Cancel?${q.toString()}`;
+  const url = `${joinHostAndPath(c.host, c.einvCancelPath)}?${q.toString()}`;
   const payload = {
     Irn: irn,
     CnlRsn: mapCancelReasonToCnlRsn(reason),
@@ -626,7 +652,7 @@ async function generateEwayBill(_companyId, irn, transportArgs, userGstin, parti
     gstin,
     authtoken,
   });
-  const url = `${c.host}/ewaybillapi/dec/v1.03/ewayapi?${q.toString()}`;
+  const url = `${joinHostAndPath(c.host, c.ewbApiPath)}?${q.toString()}`;
 
   const response = await fetch(url, {
     method: 'POST',
@@ -682,7 +708,7 @@ async function cancelEwayBill(_companyId, ewbNo, reason, remark, userGstin) {
     gstin,
     authtoken,
   });
-  const url = `${c.host}/ewaybillapi/dec/v1.03/ewayapi?${q.toString()}`;
+  const url = `${joinHostAndPath(c.host, c.ewbApiPath)}?${q.toString()}`;
 
   const num = typeof ewbNo === 'string' && /^\d+$/.test(ewbNo.trim())
     ? parseInt(ewbNo.trim(), 10)
