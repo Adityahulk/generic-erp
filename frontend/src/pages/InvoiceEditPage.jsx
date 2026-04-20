@@ -21,6 +21,7 @@ function emptyLine() {
     unit_price_display: '',
     gst_rate: 5,
     price_includes_tax: true,
+    tax_mode: 'auto',
   };
 }
 
@@ -44,6 +45,7 @@ export default function InvoiceEditPage() {
   const queryClient = useQueryClient();
 
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [customerId, setCustomerId] = useState('');
   const [paymentType, setPaymentType] = useState('Cash');
   const [discount, setDiscount] = useState('');
   const [notes, setNotes] = useState('');
@@ -54,6 +56,21 @@ export default function InvoiceEditPage() {
     address: '',
     gstin: '',
   });
+  const [seller, setSeller] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    address: '',
+    gstin: '',
+  });
+  const [shipping, setShipping] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    address: '',
+    gstin: '',
+  });
+  const [shipToSameAsBilling, setShipToSameAsBilling] = useState(true);
   const [items, setItems] = useState([emptyLine()]);
 
   const { data, isLoading } = useQuery({
@@ -78,13 +95,22 @@ export default function InvoiceEditPage() {
         unit_price_display: inclusiveRupees ? inclusiveRupees.toFixed(2) : '',
         gst_rate: rate || 5,
         price_includes_tax: true,
+        tax_mode: it.tax_mode || (Number(it.igst_rate) > 0 ? 'igst' : (Number(it.cgst_rate) > 0 || Number(it.sgst_rate) > 0 ? 'cgst_sgst' : 'auto')),
       };
     });
 
     setInvoiceDate(inv.invoice_date ? String(inv.invoice_date).split('T')[0] : new Date().toISOString().split('T')[0]);
+    setCustomerId(inv.customer_id || '');
     setPaymentType(inv.payment_type || 'Cash');
     setDiscount(((Number(inv.discount || 0)) / 100).toFixed(2));
     setNotes(inv.notes || '');
+    setSeller({
+      name: inv.company_name || '',
+      phone: inv.company_phone || '',
+      email: inv.company_email || '',
+      address: inv.company_address || '',
+      gstin: inv.company_gstin || '',
+    });
     setCustomer({
       name: inv.customer_name || '',
       phone: inv.customer_phone || '',
@@ -92,6 +118,14 @@ export default function InvoiceEditPage() {
       address: inv.customer_address || '',
       gstin: inv.customer_gstin || '',
     });
+    setShipping({
+      name: inv.ship_to_name || inv.customer_name || '',
+      phone: inv.ship_to_phone || inv.customer_phone || '',
+      email: inv.ship_to_email || inv.customer_email || '',
+      address: inv.ship_to_address || inv.customer_address || '',
+      gstin: inv.ship_to_gstin || inv.customer_gstin || '',
+    });
+    setShipToSameAsBilling(inv.ship_to_same_as_billing !== false);
     setItems(loadedItems.length ? loadedItems : [emptyLine()]);
   }, [data]);
 
@@ -135,19 +169,36 @@ export default function InvoiceEditPage() {
           quantity: Number(it.quantity) || 1,
           unit_price: unitPriceExclusive,
           gst_rate: gstRate,
+          tax_mode: it.tax_mode || 'auto',
         };
       });
 
     if (!payloadItems.length) return;
 
     updateMut.mutate({
-      customer: {
+      customer_id: customerId || undefined,
+      seller_details: {
+        name: seller.name,
+        phone: seller.phone || undefined,
+        email: seller.email || '',
+        address: seller.address || undefined,
+        gstin: seller.gstin || undefined,
+      },
+      billing_details: {
         name: customer.name,
         phone: customer.phone || undefined,
         email: customer.email || '',
         address: customer.address || undefined,
         gstin: customer.gstin || undefined,
       },
+      shipping_details: {
+        name: (shipToSameAsBilling ? customer.name : shipping.name) || customer.name,
+        phone: shipToSameAsBilling ? (customer.phone || undefined) : (shipping.phone || undefined),
+        email: shipToSameAsBilling ? (customer.email || '') : (shipping.email || ''),
+        address: shipToSameAsBilling ? (customer.address || undefined) : (shipping.address || undefined),
+        gstin: shipToSameAsBilling ? (customer.gstin || undefined) : (shipping.gstin || undefined),
+      },
+      ship_to_same_as_billing: shipToSameAsBilling,
       items: payloadItems,
       discount: Math.max(0, Math.round((Number(discount) || 0) * 100)),
       invoice_date: invoiceDate,
@@ -177,6 +228,17 @@ export default function InvoiceEditPage() {
 
       <div className="space-y-6 max-w-6xl">
         <Card>
+          <CardHeader><CardTitle className="text-base">Seller details</CardTitle></CardHeader>
+          <CardContent className="grid sm:grid-cols-2 gap-3">
+            <div><Label>Name *</Label><Input value={seller.name} onChange={(e) => setSeller((p) => ({ ...p, name: e.target.value }))} /></div>
+            <div><Label>Phone</Label><Input value={seller.phone} onChange={(e) => setSeller((p) => ({ ...p, phone: e.target.value }))} /></div>
+            <div><Label>Email</Label><Input value={seller.email} onChange={(e) => setSeller((p) => ({ ...p, email: e.target.value }))} /></div>
+            <div><Label>GSTIN</Label><Input value={seller.gstin} onChange={(e) => setSeller((p) => ({ ...p, gstin: e.target.value.toUpperCase() }))} /></div>
+            <div className="sm:col-span-2"><Label>Address</Label><Textarea rows={2} value={seller.address} onChange={(e) => setSeller((p) => ({ ...p, address: e.target.value }))} /></div>
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardHeader><CardTitle className="text-base">Customer details</CardTitle></CardHeader>
           <CardContent className="grid sm:grid-cols-2 gap-3">
             <div><Label>Name *</Label><Input value={customer.name} onChange={(e) => setCustomer((p) => ({ ...p, name: e.target.value }))} /></div>
@@ -184,6 +246,25 @@ export default function InvoiceEditPage() {
             <div><Label>Email</Label><Input value={customer.email} onChange={(e) => setCustomer((p) => ({ ...p, email: e.target.value }))} /></div>
             <div><Label>GSTIN</Label><Input value={customer.gstin} onChange={(e) => setCustomer((p) => ({ ...p, gstin: e.target.value.toUpperCase() }))} /></div>
             <div className="sm:col-span-2"><Label>Address</Label><Textarea rows={2} value={customer.address} onChange={(e) => setCustomer((p) => ({ ...p, address: e.target.value }))} /></div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">Shipping details</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={shipToSameAsBilling} onChange={(e) => setShipToSameAsBilling(e.target.checked)} />
+              Same as billing details
+            </label>
+            {!shipToSameAsBilling && (
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div><Label>Name *</Label><Input value={shipping.name} onChange={(e) => setShipping((p) => ({ ...p, name: e.target.value }))} /></div>
+                <div><Label>Phone</Label><Input value={shipping.phone} onChange={(e) => setShipping((p) => ({ ...p, phone: e.target.value }))} /></div>
+                <div><Label>Email</Label><Input value={shipping.email} onChange={(e) => setShipping((p) => ({ ...p, email: e.target.value }))} /></div>
+                <div><Label>GSTIN</Label><Input value={shipping.gstin} onChange={(e) => setShipping((p) => ({ ...p, gstin: e.target.value.toUpperCase() }))} /></div>
+                <div className="sm:col-span-2"><Label>Address</Label><Textarea rows={2} value={shipping.address} onChange={(e) => setShipping((p) => ({ ...p, address: e.target.value }))} /></div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -214,14 +295,22 @@ export default function InvoiceEditPage() {
               const pv = linePreview(it);
               return (
                 <div key={idx} className="grid grid-cols-12 gap-2 items-end border rounded-md p-3">
-                  <div className="col-span-3"><Label className="text-xs">Description</Label><Input value={it.description} onChange={(e) => setItem(idx, 'description', e.target.value)} /></div>
-                  <div className="col-span-2"><Label className="text-xs">HSN</Label><Input value={it.hsn_code} onChange={(e) => setItem(idx, 'hsn_code', e.target.value)} /></div>
+                  <div className="col-span-2"><Label className="text-xs">Description</Label><Input value={it.description} onChange={(e) => setItem(idx, 'description', e.target.value)} /></div>
+                  <div className="col-span-1"><Label className="text-xs">HSN</Label><Input value={it.hsn_code} onChange={(e) => setItem(idx, 'hsn_code', e.target.value)} /></div>
                   <div className="col-span-1"><Label className="text-xs">Qty</Label><Input type="number" min="1" value={it.quantity} onChange={(e) => setItem(idx, 'quantity', Number(e.target.value))} /></div>
                   <div className="col-span-2"><Label className="text-xs">Unit Price ₹</Label><Input type="number" step="0.01" min="0" value={it.unit_price_display} onChange={(e) => setItem(idx, 'unit_price_display', e.target.value)} /></div>
                   <div className="col-span-2">
                     <Label className="text-xs">GST %</Label>
                     <Select value={String(it.gst_rate)} onChange={(e) => setItem(idx, 'gst_rate', Number(e.target.value))}>
                       {[5, 12, 18, 28, 0].map((r) => <option key={r} value={r}>{r}%</option>)}
+                    </Select>
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-xs">Tax type</Label>
+                    <Select value={it.tax_mode || 'auto'} onChange={(e) => setItem(idx, 'tax_mode', e.target.value)}>
+                      <option value="auto">Auto (by GSTIN)</option>
+                      <option value="igst">IGST</option>
+                      <option value="cgst_sgst">CGST+SGST</option>
                     </Select>
                   </div>
                   <div className="col-span-1 text-center">

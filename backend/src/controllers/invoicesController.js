@@ -55,7 +55,9 @@ function computeInvoiceItems(items, interstate) {
     const hsnCode = item.hsn_code || '8703';
     const gstRate = item.gst_rate !== undefined ? item.gst_rate : getGstRateForHsn(hsnCode);
 
-    const gst = calculateGst(lineTotal, gstRate, interstate);
+    const mode = item.tax_mode || 'auto';
+    const effectiveInterstate = mode === 'igst' ? true : mode === 'cgst_sgst' ? false : interstate;
+    const gst = calculateGst(lineTotal, gstRate, effectiveInterstate);
     const amount = lineTotal + gst.cgst_amount + gst.sgst_amount + gst.igst_amount;
 
     processedItems.push({
@@ -65,6 +67,7 @@ function computeInvoiceItems(items, interstate) {
       unit_price: unitPrice,
       ...gst,
       amount,
+      tax_mode: mode,
     });
 
     subtotal += lineTotal;
@@ -110,18 +113,37 @@ async function insertInvoiceWithItems(client, company_id, branch_id, data) {
   }
 
   const { rows: custRows } = await client.query(
-    `SELECT gstin FROM customers WHERE id = $1 AND company_id = $2`,
+    `SELECT name, phone, email, address, gstin FROM customers WHERE id = $1 AND company_id = $2`,
     [customerId, company_id],
   );
-  const customerGstin = custRows[0]?.gstin;
+  const customer = custRows[0] || {};
+  const customerGstin = customer.gstin;
 
   const { rows: compRows } = await client.query(
-    `SELECT gstin FROM companies WHERE id = $1`,
+    `SELECT name, gstin, address, phone, email FROM companies WHERE id = $1`,
     [company_id],
   );
-  const companyGstin = compRows[0]?.gstin;
+  const company = compRows[0] || {};
+  const companyGstin = company.gstin;
 
-  const interstate = isInterstate(companyGstin, customerGstin);
+  const seller = data.seller_details || {
+    name: company.name,
+    gstin: company.gstin,
+    address: company.address,
+    phone: company.phone,
+    email: company.email,
+  };
+  const billing = data.billing_details || {
+    name: customer.name,
+    gstin: customer.gstin,
+    address: customer.address,
+    phone: customer.phone,
+    email: customer.email,
+  };
+  const shipToSame = data.ship_to_same_as_billing !== false;
+  const shipping = shipToSame ? { ...billing } : (data.shipping_details || { ...billing });
+
+  const interstate = isInterstate(seller.gstin || companyGstin, billing.gstin || customerGstin);
 
   let vehicleId = data.vehicle_id || null;
   if (vehicleId) {
@@ -158,14 +180,21 @@ async function insertInvoiceWithItems(client, company_id, branch_id, data) {
   const { rows: invRows } = await client.query(
     `INSERT INTO invoices
        (company_id, branch_id, invoice_number, invoice_date, customer_id, vehicle_id,
-        subtotal, discount, cgst_amount, sgst_amount, igst_amount, total, status, notes, payment_type)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+        subtotal, discount, cgst_amount, sgst_amount, igst_amount, total, status, notes, payment_type,
+        seller_name, seller_gstin, seller_address, seller_phone, seller_email,
+        bill_to_name, bill_to_gstin, bill_to_address, bill_to_phone, bill_to_email,
+        ship_to_name, ship_to_gstin, ship_to_address, ship_to_phone, ship_to_email, ship_to_same_as_billing)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)
      RETURNING *`,
     [
       company_id, branch_id, invoiceNumber, data.invoice_date || new Date().toISOString().split('T')[0],
       customerId, vehicleId,
       subtotal, discount, totalCgst, totalSgst, totalIgst, total,
       data.status || 'draft', data.notes || null, data.payment_type || 'Cash',
+      seller.name || null, seller.gstin || null, seller.address || null, seller.phone || null, seller.email || null,
+      billing.name || null, billing.gstin || null, billing.address || null, billing.phone || null, billing.email || null,
+      shipping.name || null, shipping.gstin || null, shipping.address || null, shipping.phone || null, shipping.email || null,
+      shipToSame,
     ],
   );
 
@@ -175,12 +204,12 @@ async function insertInvoiceWithItems(client, company_id, branch_id, data) {
     await client.query(
       `INSERT INTO invoice_items
          (invoice_id, company_id, description, hsn_code, quantity, unit_price,
-          cgst_rate, sgst_rate, igst_rate, cgst_amount, sgst_amount, igst_amount, amount)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+            cgst_rate, sgst_rate, igst_rate, cgst_amount, sgst_amount, igst_amount, amount, tax_mode)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
       [
         invoice.id, company_id, item.description, item.hsn_code, item.quantity,
         item.unit_price, item.cgst_rate, item.sgst_rate, item.igst_rate,
-        item.cgst_amount, item.sgst_amount, item.igst_amount, item.amount,
+          item.cgst_amount, item.sgst_amount, item.igst_amount, item.amount, item.tax_mode || 'auto',
       ],
     );
   }
@@ -333,7 +362,10 @@ async function updateInvoice(req, res) {
     await client.query('BEGIN');
 
     const { rows: invRows } = await client.query(
-      `SELECT id, status, customer_id, branch_id, vehicle_id
+      `SELECT id, status, customer_id, branch_id, vehicle_id,
+              seller_name, seller_gstin, seller_address, seller_phone, seller_email,
+              bill_to_name, bill_to_gstin, bill_to_address, bill_to_phone, bill_to_email,
+              ship_to_name, ship_to_gstin, ship_to_address, ship_to_phone, ship_to_email, ship_to_same_as_billing
        FROM invoices
        WHERE id = $1 AND company_id = $2 AND is_deleted = FALSE
        FOR UPDATE`,
@@ -378,18 +410,47 @@ async function updateInvoice(req, res) {
     }
 
     const { rows: custRows } = await client.query(
-      `SELECT gstin FROM customers WHERE id = $1 AND company_id = $2`,
+      `SELECT name, phone, email, address, gstin FROM customers WHERE id = $1 AND company_id = $2`,
       [customerId, company_id],
     );
-    const customerGstin = custRows[0]?.gstin;
+    const customer = custRows[0] || {};
+    const customerGstin = customer.gstin;
 
     const { rows: compRows } = await client.query(
-      `SELECT gstin FROM companies WHERE id = $1`,
+      `SELECT name, gstin, address, phone, email FROM companies WHERE id = $1`,
       [company_id],
     );
-    const companyGstin = compRows[0]?.gstin;
+    const company = compRows[0] || {};
+    const companyGstin = company.gstin;
 
-    const interstate = isInterstate(companyGstin, customerGstin);
+    const seller = data.seller_details || {
+      name: current.seller_name || company.name,
+      gstin: current.seller_gstin || company.gstin,
+      address: current.seller_address || company.address,
+      phone: current.seller_phone || company.phone,
+      email: current.seller_email || company.email,
+    };
+    const billing = data.billing_details || {
+      name: current.bill_to_name || customer.name,
+      gstin: current.bill_to_gstin || customer.gstin,
+      address: current.bill_to_address || customer.address,
+      phone: current.bill_to_phone || customer.phone,
+      email: current.bill_to_email || customer.email,
+    };
+    const shipToSame = data.ship_to_same_as_billing !== undefined
+      ? data.ship_to_same_as_billing
+      : current.ship_to_same_as_billing !== false;
+    const shipping = shipToSame
+      ? { ...billing }
+      : (data.shipping_details || {
+        name: current.ship_to_name || billing.name,
+        gstin: current.ship_to_gstin || billing.gstin,
+        address: current.ship_to_address || billing.address,
+        phone: current.ship_to_phone || billing.phone,
+        email: current.ship_to_email || billing.email,
+      });
+
+    const interstate = isInterstate(seller.gstin || companyGstin, billing.gstin || customerGstin);
     const {
       processedItems,
       subtotal,
@@ -413,8 +474,24 @@ async function updateInvoice(req, res) {
            total = $8,
            notes = $9,
            payment_type = $10,
+           seller_name = $11,
+           seller_gstin = $12,
+           seller_address = $13,
+           seller_phone = $14,
+           seller_email = $15,
+           bill_to_name = $16,
+           bill_to_gstin = $17,
+           bill_to_address = $18,
+           bill_to_phone = $19,
+           bill_to_email = $20,
+           ship_to_name = $21,
+           ship_to_gstin = $22,
+           ship_to_address = $23,
+           ship_to_phone = $24,
+           ship_to_email = $25,
+           ship_to_same_as_billing = $26,
            updated_at = NOW()
-       WHERE id = $11 AND company_id = $12`,
+       WHERE id = $27 AND company_id = $28`,
       [
         data.invoice_date || new Date().toISOString().split('T')[0],
         customerId,
@@ -426,6 +503,22 @@ async function updateInvoice(req, res) {
         total,
         data.notes || null,
         data.payment_type || 'Cash',
+        seller.name || null,
+        seller.gstin || null,
+        seller.address || null,
+        seller.phone || null,
+        seller.email || null,
+        billing.name || null,
+        billing.gstin || null,
+        billing.address || null,
+        billing.phone || null,
+        billing.email || null,
+        shipping.name || null,
+        shipping.gstin || null,
+        shipping.address || null,
+        shipping.phone || null,
+        shipping.email || null,
+        shipToSame,
         id,
         company_id,
       ],
@@ -442,8 +535,8 @@ async function updateInvoice(req, res) {
       await client.query(
         `INSERT INTO invoice_items
            (invoice_id, company_id, description, hsn_code, quantity, unit_price,
-            cgst_rate, sgst_rate, igst_rate, cgst_amount, sgst_amount, igst_amount, amount)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+            cgst_rate, sgst_rate, igst_rate, cgst_amount, sgst_amount, igst_amount, amount, tax_mode)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
         [
           id,
           company_id,
@@ -458,6 +551,7 @@ async function updateInvoice(req, res) {
           item.sgst_amount,
           item.igst_amount,
           item.amount,
+          item.tax_mode || 'auto',
         ],
       );
     }
@@ -594,11 +688,12 @@ async function confirmInvoice(req, res) {
 async function fetchFullInvoice(invoiceId, companyId) {
   const { rows } = await query(
     `SELECT i.*,
-            c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
-            c.address AS customer_address, c.gstin AS customer_gstin,
+            COALESCE(i.bill_to_name, c.name) AS customer_name, COALESCE(i.bill_to_phone, c.phone) AS customer_phone, COALESCE(i.bill_to_email, c.email) AS customer_email,
+            COALESCE(i.bill_to_address, c.address) AS customer_address, COALESCE(i.bill_to_gstin, c.gstin) AS customer_gstin,
+            i.ship_to_name, i.ship_to_phone, i.ship_to_email, i.ship_to_address, i.ship_to_gstin, i.ship_to_same_as_billing,
             b.name AS branch_name, b.address AS branch_address, b.phone AS branch_phone,
-            co.name AS company_name, co.gstin AS company_gstin, co.address AS company_address,
-            co.phone AS company_phone, co.email AS company_email,
+            COALESCE(i.seller_name, co.name) AS company_name, COALESCE(i.seller_gstin, co.gstin) AS company_gstin, COALESCE(i.seller_address, co.address) AS company_address,
+            COALESCE(i.seller_phone, co.phone) AS company_phone, COALESCE(i.seller_email, co.email) AS company_email,
             co.logo_url, co.signature_url,
             v.chassis_number, v.engine_number, v.rto_number AS rto_number,
             v.make AS vehicle_make, v.model AS vehicle_model,

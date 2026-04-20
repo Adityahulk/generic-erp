@@ -35,6 +35,15 @@ const itemSchema = z.object({
   quantity: z.number().int().min(1).optional().default(1),
   unit_price: z.number().int().min(0, 'Unit price in paise'),
   gst_rate: z.number().min(0).max(100).optional(),
+  tax_mode: z.enum(['auto', 'igst', 'cgst_sgst']).optional().default('auto'),
+});
+
+const partySchema = z.object({
+  name: z.string().min(1),
+  phone: z.string().optional(),
+  email: z.string().email().optional().or(z.literal('')),
+  address: z.string().optional(),
+  gstin: z.string().max(15).optional(),
 });
 
 const PAISE_HINT_LOAN =
@@ -72,6 +81,10 @@ const createInvoiceSchema = z.object({
   discount: z.number().int().min(0).optional().default(0),
   invoice_date: z.string().optional(),
   payment_type: z.enum(['Cash', 'UPI', 'NEFT', 'RTGS', 'Cheque', 'Credit', 'Card', 'Other']).optional().default('Cash'),
+  seller_details: partySchema.optional(),
+  billing_details: partySchema.optional(),
+  shipping_details: partySchema.optional(),
+  ship_to_same_as_billing: z.boolean().optional(),
   status: z.enum(['draft', 'confirmed']).optional().default('draft'),
   notes: z.string().max(2000).optional(),
   loan: invoiceLoanBodySchema.optional(),
@@ -90,6 +103,10 @@ const updateInvoiceSchema = z.object({
   discount: z.number().int().min(0).optional().default(0),
   invoice_date: z.string().optional(),
   payment_type: z.enum(['Cash', 'UPI', 'NEFT', 'RTGS', 'Cheque', 'Credit', 'Card', 'Other']).optional().default('Cash'),
+  seller_details: partySchema.optional(),
+  billing_details: partySchema.optional(),
+  shipping_details: partySchema.optional(),
+  ship_to_same_as_billing: z.boolean().optional(),
   notes: z.string().max(2000).optional(),
 }).refine(
   (d) => d.customer_id || d.customer,
@@ -209,10 +226,10 @@ router.post('/:id/einvoice/generate', requireNotRole('ca'), requireMinRole('bran
 
     const { rows: invData } = await query(
       `SELECT i.*,
-       co.name AS company_name, co.gstin AS company_gstin, co.address AS company_address,
-       co.phone AS company_phone, co.email AS company_email,
-       c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
-       c.address AS customer_address, c.gstin AS customer_gstin,
+       COALESCE(i.seller_name, co.name) AS company_name, COALESCE(i.seller_gstin, co.gstin) AS company_gstin, COALESCE(i.seller_address, co.address) AS company_address,
+       COALESCE(i.seller_phone, co.phone) AS company_phone, COALESCE(i.seller_email, co.email) AS company_email,
+       COALESCE(i.bill_to_name, c.name) AS customer_name, COALESCE(i.bill_to_phone, c.phone) AS customer_phone, COALESCE(i.bill_to_email, c.email) AS customer_email,
+       COALESCE(i.bill_to_address, c.address) AS customer_address, COALESCE(i.bill_to_gstin, c.gstin) AS customer_gstin,
        agg.items
        FROM invoices i
        INNER JOIN companies co ON co.id = i.company_id AND co.is_deleted = FALSE
@@ -291,7 +308,7 @@ router.post('/:id/einvoice/cancel', requireNotRole('ca'), requireMinRole('branch
     if (denied) return res.status(denied.status).json({ success: false, error: denied.error });
 
     const { rows: inv } = await query(
-      `SELECT i.id, i.irn, i.irn_status, i.irn_date, co.gstin AS company_gstin
+      `SELECT i.id, i.irn, i.irn_status, i.irn_date, COALESCE(i.seller_gstin, co.gstin) AS company_gstin
        FROM invoices i
        INNER JOIN companies co ON co.id = i.company_id AND co.is_deleted = FALSE
        WHERE i.id = $1 AND i.company_id = $2 AND i.is_deleted = FALSE`,
@@ -364,9 +381,9 @@ router.post('/:id/ewaybill/generate', requireNotRole('ca'), requireMinRole('bran
     }
 
     const { rows: inv } = await query(
-      `SELECT i.id, i.irn, i.irn_status, i.eway_bill_no, co.gstin AS company_gstin,
-       co.name AS company_name, co.address AS company_address,
-       c.name AS customer_name, c.address AS customer_address, c.gstin AS customer_gstin
+      `SELECT i.id, i.irn, i.irn_status, i.eway_bill_no, COALESCE(i.seller_gstin, co.gstin) AS company_gstin,
+       COALESCE(i.seller_name, co.name) AS company_name, COALESCE(i.seller_address, co.address) AS company_address,
+       COALESCE(i.bill_to_name, c.name) AS customer_name, COALESCE(i.bill_to_address, c.address) AS customer_address, COALESCE(i.bill_to_gstin, c.gstin) AS customer_gstin
        FROM invoices i
        INNER JOIN companies co ON co.id = i.company_id AND co.is_deleted = FALSE
        INNER JOIN customers c ON c.id = i.customer_id AND c.company_id = i.company_id AND c.is_deleted = FALSE
@@ -418,7 +435,7 @@ router.post('/:id/ewaybill/cancel', requireNotRole('ca'), requireMinRole('branch
     if (denied) return res.status(denied.status).json({ success: false, error: denied.error });
 
     const { rows: inv } = await query(
-      `SELECT i.eway_bill_no, i.eway_bill_status, co.gstin AS company_gstin
+      `SELECT i.eway_bill_no, i.eway_bill_status, COALESCE(i.seller_gstin, co.gstin) AS company_gstin
        FROM invoices i
        INNER JOIN companies co ON co.id = i.company_id AND co.is_deleted = FALSE
        WHERE i.id = $1 AND i.company_id = $2 AND i.is_deleted = FALSE`,

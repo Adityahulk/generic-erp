@@ -288,9 +288,14 @@ function buildTradeInvoiceHtml({ invoice: inv, items }, templateRow) {
     <p>${phone ? esc(`Phone No: ${phone}`) : '&#160;'}</p>
     <p>${gstin ? esc(`GSTIN: ${gstin}`) : '&#160;'}</p>`;
 
-  const shipInner = L.ship_to_same_as_billing !== false
+  const shipToSame = invN.ship_to_same_as_billing !== false && L.ship_to_same_as_billing !== false;
+  const shipName = invN.ship_to_name || invN.customer_name;
+  const shipAddress = invN.ship_to_address || invN.customer_address;
+  const shipPhone = invN.ship_to_phone || invN.customer_phone;
+  const shipGstin = invN.ship_to_gstin || invN.customer_gstin;
+  const shipInner = shipToSame
     ? partyLines(invN.customer_name, invN.customer_address, invN.customer_phone, invN.customer_gstin)
-    : '<p style="font-size:9px;">Same as billing / see delivery note</p>';
+    : partyLines(shipName, shipAddress, shipPhone, shipGstin);
 
   const payType = invN.payment_type || (Number(invN.loan_amount) > 0 ? 'Credit' : 'Cash');
   const ddm = formatDateDdMmYyyy(invN.invoice_date);

@@ -66,6 +66,7 @@ const EMPTY_LINE = {
   unit_price_display: '',
   gst_rate: 5,
   price_includes_tax: true,
+  tax_mode: 'auto',
 };
 const PAYMENT_TYPES = ['Cash', 'UPI', 'NEFT', 'RTGS', 'Cheque', 'Credit', 'Card', 'Other'];
 
@@ -132,6 +133,7 @@ function NewSaleDialog({ open, onOpenChange }) {
         unit_price_display: (selectedVehicle.selling_price / 100).toString(),
         gst_rate: 5,
         price_includes_tax: true,
+        tax_mode: 'auto',
       }]);
     }
   }, [selectedVehicle]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -185,6 +187,7 @@ function NewSaleDialog({ open, onOpenChange }) {
         quantity: l.quantity || 1,
         unit_price: unitPriceExclusivePaise,
         gst_rate: gstRate,
+        tax_mode: l.tax_mode || 'auto',
       };
     });
 
@@ -381,11 +384,11 @@ function NewSaleDialog({ open, onOpenChange }) {
           <div className="space-y-3">
             {lineItems.map((item, idx) => (
               <div key={idx} className="grid grid-cols-12 gap-2 items-end">
-                <div className="col-span-3 space-y-1">
+                <div className="col-span-2 space-y-1">
                   <Label className="text-xs">Description</Label>
                   <Input value={item.description} onChange={(e) => setField(idx, 'description', e.target.value)} placeholder="Vehicle / Insurance / RTO" />
                 </div>
-                <div className="col-span-2 space-y-1">
+                <div className="col-span-1 space-y-1">
                   <Label className="text-xs">HSN</Label>
                   <Input value={item.hsn_code} onChange={(e) => setField(idx, 'hsn_code', e.target.value)} placeholder="8703" />
                 </div>
@@ -405,6 +408,14 @@ function NewSaleDialog({ open, onOpenChange }) {
                     <option value={12}>12%</option>
                     <option value={5}>5%</option>
                     <option value={0}>0%</option>
+                  </Select>
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <Label className="text-xs">Tax type</Label>
+                  <Select value={item.tax_mode || 'auto'} onChange={(e) => setField(idx, 'tax_mode', e.target.value)}>
+                    <option value="auto">Auto (by GSTIN)</option>
+                    <option value="igst">IGST</option>
+                    <option value="cgst_sgst">CGST+SGST</option>
                   </Select>
                 </div>
                 <div className="col-span-1 flex items-center justify-center">
