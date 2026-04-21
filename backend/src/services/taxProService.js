@@ -796,7 +796,7 @@ function buildNicEwayBillPayload(invoice, items, transportArgs) {
     cessNonAdvolValue: 0,
     totInvValue: Math.round((totalValue + cgstValue + sgstValue + igstValue - discountInv) * 100) / 100,
     transMode: String(transportArgs.transport_mode || '1'),
-    transDistance: String(transportArgs.distance_km || '0'),
+    transDistance: "0",
     vehicleNo: String(transportArgs.vehicle_no || '').replace(/\s/g, '').toUpperCase().substring(0, 20),
     vehicleType: (transportArgs.vehicle_type || 'R').substring(0, 1).toUpperCase() === 'O' ? 'O' : 'R',
     transporterId: String(transportArgs.transporter_id || '').trim().toUpperCase() || "",
