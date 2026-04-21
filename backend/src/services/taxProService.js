@@ -886,34 +886,48 @@ async function generateEwayBill(_companyId, irn, transportArgs, userGstin, parti
     }
 
     const u = unwrapData(data);
-    let { ewbNo, ewbDt, validUpto } = pickEwbGenFields(u);
+    console.info(`[taxPro] ewb raw response (first 500 chars): ${text.substring(0, 500)}`);
+    console.info(`[taxPro] ewb unwrapped keys: ${u ? Object.keys(u).join(',') : 'null'}, data keys: ${data ? Object.keys(data).join(',') : 'null'}`);
 
-    // Fallback: check raw response directly (GENEWAYBILL returns fields at top level, not wrapped in Data)
-    if (!ewbNo && data?.ewayBillNo) {
-      const fallback = pickEwbGenFields(data);
-      ewbNo = fallback.ewbNo;
-      ewbDt = fallback.ewbDt;
-      validUpto = fallback.validUpto;
+    let ewbNo = '';
+    let ewbDt = '';
+    let validUpto = '';
+
+    // Strategy 1: pickEwbGenFields on unwrapped data
+    const p1 = pickEwbGenFields(u);
+    if (p1.ewbNo) { ewbNo = p1.ewbNo; ewbDt = p1.ewbDt; validUpto = p1.validUpto; }
+
+    // Strategy 2: pickEwbGenFields on raw parsed data
+    if (!ewbNo) {
+      const p2 = pickEwbGenFields(data);
+      if (p2.ewbNo) { ewbNo = p2.ewbNo; ewbDt = p2.ewbDt; validUpto = p2.validUpto; }
     }
 
+    // Strategy 3: regex extraction from raw response text
+    if (!ewbNo) {
+      const m = text.match(/["']?ewayBillNo["']?\s*[:=]\s*(\d+)/i);
+      if (m) {
+        ewbNo = m[1];
+        const dtMatch = text.match(/["']?ewayBillDate["']?\s*[:=]\s*["']([^"']+)["']/i);
+        const vuMatch = text.match(/["']?validUpto["']?\s*[:=]\s*["']([^"']+)["']/i);
+        ewbDt = (dtMatch ? parseIndianDateTimeLoose(dtMatch[1]) : null) || new Date().toISOString();
+        validUpto = (vuMatch ? parseIndianDateTimeLoose(vuMatch[1]) : null) || ewbDt;
+      }
+    }
+
+    console.info(`[taxPro] ewb extraction result: ewbNo="${ewbNo}" ewbDt="${ewbDt}" validUpto="${validUpto}"`);
+
     if (ewbNo) {
-      // Success — even if response.ok is oddly false or there's an alert field
-      console.info(`[taxPro] ewb generated successfully: ewbNo=${ewbNo} ewbDt=${ewbDt} validUpto=${validUpto} alert="${data?.alert || u?.alert || ''}" `);
+      console.info(`[taxPro] ewb generated successfully: ewbNo=${ewbNo}`);
       return { ewbNo, ewbDt, validUpto };
     }
 
-    if (!response.ok) {
-      if (attempt === 0 && isAuthTokenExpiredError(data)) {
-        await cacheTokenDelete(memoryEwb, redisKey);
-        continue;
-      }
-      logTaxProFailure('generateEwayBill', response, data);
-      throw new Error(`TaxPro E-Way Bill generation failed: ${parseTaxProError(data)} (HTTP ${response.status})`);
+    if (attempt === 0 && isAuthTokenExpiredError(data)) {
+      await cacheTokenDelete(memoryEwb, redisKey);
+      continue;
     }
-
-    // HTTP 200 but no ewbNo — unexpected
     logTaxProFailure('generateEwayBill', response, data);
-    throw new Error(`TaxPro E-Way Bill generation failed: unexpected response — ${parseTaxProError(data)} (HTTP ${response.status})`);
+    throw new Error(`TaxPro E-Way Bill generation failed: ${parseTaxProError(data)} (HTTP ${response.status})`);
   }
   throw new Error('TaxPro E-Way Bill generation failed: unable to refresh auth token');
 }
