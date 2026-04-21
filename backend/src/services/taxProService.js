@@ -280,6 +280,25 @@ async function cacheTokenSet(mapMem, redisKey, token) {
   }
 }
 
+async function cacheTokenDelete(mapMem, redisKey) {
+  mapMem.delete(redisKey);
+  try {
+    await redis.del(redisKey);
+    await redis.del(`${redisKey}:exp`);
+  } catch (e) {
+    console.warn('Redis cache delete failed (taxProService):', e.message);
+  }
+}
+
+function isAuthTokenExpiredError(data) {
+  const raw = parseTaxProError(data).toLowerCase();
+  if (!raw) return false;
+  if (raw.includes('gsp752')) return true;
+  const hasAuthToken = raw.includes('authtoken') || raw.includes('auth token');
+  const hasExpirySignal = raw.includes('expired') || raw.includes('not found') || raw.includes('invalid');
+  return hasAuthToken && hasExpirySignal;
+}
+
 async function getEInvoiceAuthToken(sellerGstin) {
   const c = getConfig();
   if (!c.aspid || !c.password || !c.einvUser || !c.einvPwd) {
@@ -514,51 +533,57 @@ async function generateIRN(_companyId, invoiceData) {
   }
 
   const c = getConfig();
-  const authToken = await getEInvoiceAuthToken(sellerGstin);
   const body = buildNicEInvoicePayload(invoiceData);
+  const redisKey = `${REDIS_EINV_PREFIX}${sellerGstin}`;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const authToken = await getEInvoiceAuthToken(sellerGstin);
+    const q = new URLSearchParams({
+      aspid: c.aspid,
+      password: c.password,
+      Gstin: sellerGstin,
+      AuthToken: authToken,
+      QrCodeSize: c.qrCodeSize,
+      User_name: c.einvUser,
+    });
+    const url = `${joinHostAndPath(c.host, c.einvInvoicePath)}?${q.toString()}`;
 
-  const q = new URLSearchParams({
-    aspid: c.aspid,
-    password: c.password,
-    Gstin: sellerGstin,
-    AuthToken: authToken,
-    QrCodeSize: c.qrCodeSize,
-    User_name: c.einvUser,
-  });
-  const url = `${joinHostAndPath(c.host, c.einvInvoicePath)}?${q.toString()}`;
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const text = await response.text();
-  let data = {};
-  if (text) {
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { _rawBody: text };
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const text = await response.text();
+    let data = {};
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { _rawBody: text };
+      }
     }
+
+    const u = unwrapData(data);
+    const { irn, ackNumber, ackDate, signedQr, signedInvoice } = pickIrnSuccessFields(u);
+
+    if (!response.ok || !irn) {
+      if (attempt === 0 && isAuthTokenExpiredError(data)) {
+        await cacheTokenDelete(memoryEinv, redisKey);
+        continue;
+      }
+      logTaxProFailure('generateIRN', response, data);
+      throw new Error(`TaxPro IRN generation failed: ${parseTaxProError(data)} (HTTP ${response.status})`);
+    }
+
+    const ackIso = parseIndianDateTimeLoose(ackDate) || (ackDate ? String(ackDate) : null);
+    return {
+      irn,
+      ackNumber,
+      ackDate: ackIso || new Date().toISOString(),
+      signedQr,
+      signedInvoice,
+    };
   }
-
-  const u = unwrapData(data);
-  const { irn, ackNumber, ackDate, signedQr, signedInvoice } = pickIrnSuccessFields(u);
-
-  if (!response.ok || !irn) {
-    logTaxProFailure('generateIRN', response, data);
-    throw new Error(`TaxPro IRN generation failed: ${parseTaxProError(data)} (HTTP ${response.status})`);
-  }
-
-  const ackIso = parseIndianDateTimeLoose(ackDate) || (ackDate ? String(ackDate) : null);
-
-  return {
-    irn,
-    ackNumber,
-    ackDate: ackIso || new Date().toISOString(),
-    signedQr,
-    signedInvoice,
-  };
+  throw new Error('TaxPro IRN generation failed: unable to refresh auth token');
 }
 
 function mapCancelReasonToCnlRsn(reason) {
@@ -578,48 +603,57 @@ async function cancelIRN(_companyId, irn, reason, remark, userGstin) {
   if (!irn) throw new Error('IRN required');
 
   const c = getConfig();
-  const authToken = await getEInvoiceAuthToken(gstin);
-  const q = new URLSearchParams({
-    aspid: c.aspid,
-    password: c.password,
-    Gstin: gstin,
-    AuthToken: authToken,
-    User_name: c.einvUser,
-  });
-  const url = `${joinHostAndPath(c.host, c.einvCancelPath)}?${q.toString()}`;
+  const redisKey = `${REDIS_EINV_PREFIX}${gstin}`;
   const payload = {
     Irn: irn,
     CnlRsn: mapCancelReasonToCnlRsn(reason),
     CnlRem: (remark && String(remark).trim()) || 'Data entry mistake',
   };
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const text = await response.text();
-  let data = {};
-  if (text) {
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { _rawBody: text };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const authToken = await getEInvoiceAuthToken(gstin);
+    const q = new URLSearchParams({
+      aspid: c.aspid,
+      password: c.password,
+      Gstin: gstin,
+      AuthToken: authToken,
+      User_name: c.einvUser,
+    });
+    const url = `${joinHostAndPath(c.host, c.einvCancelPath)}?${q.toString()}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const text = await response.text();
+    let data = {};
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { _rawBody: text };
+      }
     }
+
+    const u = unwrapData(data);
+    const cancelDt = u?.CancelDate || u?.cancelDate || u?.CnlDt || '';
+
+    if (!response.ok) {
+      if (attempt === 0 && isAuthTokenExpiredError(data)) {
+        await cacheTokenDelete(memoryEinv, redisKey);
+        continue;
+      }
+      logTaxProFailure('cancelIRN', response, data);
+      throw new Error(`TaxPro IRN cancellation failed: ${parseTaxProError(data)} (HTTP ${response.status})`);
+    }
+
+    return {
+      cancelled: true,
+      cancelDate: parseIndianDateTimeLoose(cancelDt) || new Date().toISOString(),
+    };
   }
-
-  const u = unwrapData(data);
-  const cancelDt = u?.CancelDate || u?.cancelDate || u?.CnlDt || '';
-
-  if (!response.ok) {
-    logTaxProFailure('cancelIRN', response, data);
-    throw new Error(`TaxPro IRN cancellation failed: ${parseTaxProError(data)} (HTTP ${response.status})`);
-  }
-
-  return {
-    cancelled: true,
-    cancelDate: parseIndianDateTimeLoose(cancelDt) || new Date().toISOString(),
-  };
+  throw new Error('TaxPro IRN cancellation failed: unable to refresh auth token');
 }
 
 function buildPartyDtlsForEwb(name, address, gstin) {
@@ -686,7 +720,7 @@ async function generateEwayBill(_companyId, irn, transportArgs, userGstin, parti
   if (!gstin) throw new Error('Company GSTIN is required for e-way bill');
 
   const c = getConfig();
-  const authtoken = await getEwbAuthToken(gstin);
+  const redisKey = `${REDIS_EWB_PREFIX}${gstin}`;
 
   const dispatch = parties.companyName
     ? buildPartyDtlsForEwb(parties.companyName, parties.companyAddress, gstin)
@@ -704,39 +738,47 @@ async function generateEwayBill(_companyId, irn, transportArgs, userGstin, parti
     shipTo: shipTo && parties.customerAddress ? shipTo : null,
   });
 
-  const q = new URLSearchParams({
-    action: c.ewbGenAction,
-    aspid: c.aspid,
-    password: c.password,
-    gstin,
-    authtoken,
-  });
-  const url = `${joinHostAndPath(c.host, c.ewbApiPath)}?${q.toString()}`;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const authtoken = await getEwbAuthToken(gstin);
+    const q = new URLSearchParams({
+      action: c.ewbGenAction,
+      aspid: c.aspid,
+      password: c.password,
+      gstin,
+      authtoken,
+    });
+    const url = `${joinHostAndPath(c.host, c.ewbApiPath)}?${q.toString()}`;
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const text = await response.text();
-  let data = {};
-  if (text) {
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { _rawBody: text };
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const text = await response.text();
+    let data = {};
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { _rawBody: text };
+      }
     }
+
+    const u = unwrapData(data);
+    const { ewbNo, ewbDt, validUpto } = pickEwbGenFields(u);
+
+    if (!response.ok || !ewbNo) {
+      if (attempt === 0 && isAuthTokenExpiredError(data)) {
+        await cacheTokenDelete(memoryEwb, redisKey);
+        continue;
+      }
+      logTaxProFailure('generateEwayBill', response, data);
+      throw new Error(`TaxPro E-Way Bill generation failed: ${parseTaxProError(data)} (HTTP ${response.status})`);
+    }
+
+    return { ewbNo, ewbDt, validUpto };
   }
-
-  const u = unwrapData(data);
-  const { ewbNo, ewbDt, validUpto } = pickEwbGenFields(u);
-
-  if (!response.ok || !ewbNo) {
-    logTaxProFailure('generateEwayBill', response, data);
-    throw new Error(`TaxPro E-Way Bill generation failed: ${parseTaxProError(data)} (HTTP ${response.status})`);
-  }
-
-  return { ewbNo, ewbDt, validUpto };
+  throw new Error('TaxPro E-Way Bill generation failed: unable to refresh auth token');
 }
 
 function mapEwayCancelReasonCode(reason) {
@@ -759,15 +801,7 @@ async function cancelEwayBill(_companyId, ewbNo, reason, remark, userGstin) {
   if (!gstin) throw new Error('Company GSTIN is required to cancel e-way bill');
 
   const c = getConfig();
-  const authtoken = await getEwbAuthToken(gstin);
-  const q = new URLSearchParams({
-    action: c.ewbCancelAction,
-    aspid: c.aspid,
-    password: c.password,
-    gstin,
-    authtoken,
-  });
-  const url = `${joinHostAndPath(c.host, c.ewbApiPath)}?${q.toString()}`;
+  const redisKey = `${REDIS_EWB_PREFIX}${gstin}`;
 
   const num = typeof ewbNo === 'string' && /^\d+$/.test(ewbNo.trim())
     ? parseInt(ewbNo.trim(), 10)
@@ -779,33 +813,50 @@ async function cancelEwayBill(_companyId, ewbNo, reason, remark, userGstin) {
     cancelRmrk: (remark && String(remark).trim()) || 'Cancelled',
   };
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const text = await response.text();
-  let data = {};
-  if (text) {
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { _rawBody: text };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const authtoken = await getEwbAuthToken(gstin);
+    const q = new URLSearchParams({
+      action: c.ewbCancelAction,
+      aspid: c.aspid,
+      password: c.password,
+      gstin,
+      authtoken,
+    });
+    const url = `${joinHostAndPath(c.host, c.ewbApiPath)}?${q.toString()}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const text = await response.text();
+    let data = {};
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { _rawBody: text };
+      }
     }
+
+    const u = unwrapData(data);
+    const cancelDateRaw = u?.cancelDate || u?.CancelDate;
+
+    if (!response.ok) {
+      if (attempt === 0 && isAuthTokenExpiredError(data)) {
+        await cacheTokenDelete(memoryEwb, redisKey);
+        continue;
+      }
+      logTaxProFailure('cancelEwayBill', response, data);
+      throw new Error(`TaxPro E-Way Bill cancellation failed: ${parseTaxProError(data)} (HTTP ${response.status})`);
+    }
+
+    return {
+      cancelled: true,
+      cancelDate: parseIndianDateTimeLoose(cancelDateRaw) || new Date().toISOString(),
+    };
   }
-
-  const u = unwrapData(data);
-  const cancelDateRaw = u?.cancelDate || u?.CancelDate;
-
-  if (!response.ok) {
-    logTaxProFailure('cancelEwayBill', response, data);
-    throw new Error(`TaxPro E-Way Bill cancellation failed: ${parseTaxProError(data)} (HTTP ${response.status})`);
-  }
-
-  return {
-    cancelled: true,
-    cancelDate: parseIndianDateTimeLoose(cancelDateRaw) || new Date().toISOString(),
-  };
+  throw new Error('TaxPro E-Way Bill cancellation failed: unable to refresh auth token');
 }
 
 module.exports = {
