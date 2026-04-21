@@ -752,8 +752,8 @@ function buildNicEwayBillPayload(invoice, items, transportArgs) {
   const igstValue = Math.round(items.reduce((sum, i) => sum + toRupees(i.igst_amount || 0), 0) * 100) / 100;
   const discountInv = Math.round(toRupees(invoice.discount || 0) * 100) / 100;
   
-  const fromPincode = extractPinLoc(invoice.company_address) || 0;
-  const toPincode = extractPinLoc(invoice.customer_address) || 0;
+  const fromPincode = extractPinLoc(invoice.company_address) || 201301;
+  const toPincode = extractPinLoc(invoice.customer_address) || fromPincode;
 
   const safeLocName = (addr) => {
       const parts = String(addr || '').split(',').map((p) => p.trim()).filter(Boolean);
