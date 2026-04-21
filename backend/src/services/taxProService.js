@@ -50,7 +50,23 @@ function getConfig() {
       process.env.TAXPRO_EWB_API_PATH
       || (isProduction ? PRODUCTION_EWB_API_PATH : SANDBOX_EWB_API_PATH)
     ).trim(),
+    sandboxTestGstin: (process.env.TAXPRO_SANDBOX_TEST_GSTIN || '').trim().toUpperCase(),
   };
+}
+
+function normalizeGstin(v) {
+  return String(v || '').trim().toUpperCase();
+}
+
+function pickSellerGstin(c, gstinArg, context) {
+  const source = normalizeGstin(gstinArg);
+  if (!c.isProduction && c.sandboxTestGstin) {
+    if (source && source !== c.sandboxTestGstin) {
+      console.warn(`[taxPro] sandbox GSTIN override (${context}): ${source} -> ${c.sandboxTestGstin}`);
+    }
+    return c.sandboxTestGstin;
+  }
+  return source;
 }
 
 function joinHostAndPath(host, endpointPath) {
@@ -230,7 +246,7 @@ async function getEInvoiceAuthToken(sellerGstin) {
   if (!c.aspid || !c.password || !c.einvUser || !c.einvPwd) {
     throw new Error('TaxPro e-invoice auth requires TAXPRO_ASPID, TAXPRO_PASSWORD, TAXPRO_EINV_USER_NAME, TAXPRO_EINV_PASSWORD');
   }
-  const gstin = String(sellerGstin || '').trim();
+  const gstin = pickSellerGstin(c, sellerGstin, 'einv-auth');
   if (!gstin) throw new Error('Seller GSTIN required for TaxPro e-invoice auth');
 
   const redisKey = `${REDIS_EINV_PREFIX}${gstin}`;
@@ -273,7 +289,7 @@ async function getEwbAuthToken(gstinArg) {
   if (!c.aspid || !c.password || !c.ewbUser || !c.ewbPwd) {
     throw new Error('TaxPro e-way auth requires TAXPRO_ASPID, TAXPRO_PASSWORD, TAXPRO_EWB_USER_NAME, TAXPRO_EWB_PASSWORD');
   }
-  const gstin = String(gstinArg || '').trim();
+  const gstin = pickSellerGstin(c, gstinArg, 'ewb-auth');
   if (!gstin) throw new Error('GSTIN required for TaxPro e-way auth');
 
   const redisKey = `${REDIS_EWB_PREFIX}${gstin}`;
@@ -317,7 +333,8 @@ async function getEwbAuthToken(gstinArg) {
  */
 function buildNicEInvoicePayload(invoiceData) {
   const { invoice: inv, items } = invoiceData;
-  const userGstin = String(inv.company_gstin || '').trim();
+  const c = getConfig();
+  const userGstin = pickSellerGstin(c, inv.company_gstin, 'einv-payload');
   if (!userGstin) throw new Error('Company GSTIN is required for e-invoice');
 
   const sellerStateCode = userGstin.substring(0, 2);
@@ -449,12 +466,12 @@ function pickIrnSuccessFields(u) {
 
 async function generateIRN(_companyId, invoiceData) {
   const inv = invoiceData.invoice;
-  const sellerGstin = String(inv.company_gstin || '').trim();
+  const c = getConfig();
+  const sellerGstin = pickSellerGstin(c, inv.company_gstin, 'einv-generate');
   if (!sellerGstin) {
     throw new Error('Company GSTIN is required for e-invoice (set on company profile)');
   }
 
-  const c = getConfig();
   const authToken = await getEInvoiceAuthToken(sellerGstin);
   const body = buildNicEInvoicePayload(invoiceData);
 
@@ -514,11 +531,11 @@ function mapCancelReasonToCnlRsn(reason) {
 }
 
 async function cancelIRN(_companyId, irn, reason, remark, userGstin) {
-  const gstin = String(userGstin || '').trim();
+  const c = getConfig();
+  const gstin = pickSellerGstin(c, userGstin, 'einv-cancel');
   if (!gstin) throw new Error('Company GSTIN is required to cancel IRN');
   if (!irn) throw new Error('IRN required');
 
-  const c = getConfig();
   const authToken = await getEInvoiceAuthToken(gstin);
   const q = new URLSearchParams({
     aspid: c.aspid,
@@ -623,10 +640,10 @@ function pickEwbGenFields(u) {
 
 async function generateEwayBill(_companyId, irn, transportArgs, userGstin, parties = {}) {
   if (!irn) throw new Error('IRN is required to generate E-Way Bill');
-  const gstin = String(userGstin || '').trim();
+  const c = getConfig();
+  const gstin = pickSellerGstin(c, userGstin, 'ewb-generate');
   if (!gstin) throw new Error('Company GSTIN is required for e-way bill');
 
-  const c = getConfig();
   const authtoken = await getEwbAuthToken(gstin);
 
   const dispatch = parties.companyName
@@ -696,10 +713,10 @@ function mapEwayCancelReasonCode(reason) {
 }
 
 async function cancelEwayBill(_companyId, ewbNo, reason, remark, userGstin) {
-  const gstin = String(userGstin || '').trim();
+  const c = getConfig();
+  const gstin = pickSellerGstin(c, userGstin, 'ewb-cancel');
   if (!gstin) throw new Error('Company GSTIN is required to cancel e-way bill');
 
-  const c = getConfig();
   const authtoken = await getEwbAuthToken(gstin);
   const q = new URLSearchParams({
     action: c.ewbCancelAction,
