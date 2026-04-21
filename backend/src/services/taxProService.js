@@ -803,7 +803,10 @@ function buildNicEwayBillPayload(invoice, items, transportArgs) {
   };
 
   const tId = String(transportArgs.transporter_id || '').trim().toUpperCase();
-  if (tId && tId.length > 2 && tId !== 'NULL' && tId !== 'NONE') {
+  if (tId && tId !== 'NULL' && tId !== 'NONE' && tId !== '0') {
+    if (tId.length !== 15) {
+      throw new Error(`Invalid Transporter ID: "${tId}". The transporter_id parameter must be exactly 15 characters (a valid Transporter GSTIN or TRANSIN). Leave it blank if not shipping via third-party transporter.`);
+    }
     payload.transporterId = tId;
   }
   const tName = String(transportArgs.transporter_name || '').trim();
