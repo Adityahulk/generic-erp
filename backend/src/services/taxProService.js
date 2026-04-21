@@ -126,6 +126,35 @@ function safeLocFromAddress(address, fallback) {
   return (loc.length >= 3 ? loc : fallback).substring(0, 100);
 }
 
+function sanitizeDocNumber(raw, fallback = 'INV1') {
+  let s = String(raw || '').trim();
+  // Allow only TaxPro/NIC-safe chars and max length 16.
+  s = s.replace(/[^a-zA-Z0-9/-]/g, '');
+  if (s.length > 16) s = s.slice(0, 16);
+  // First character cannot be 0 and must be alnum (1-9/A-Z/a-z).
+  while (s && !/^[a-zA-Z1-9]/.test(s)) s = s.slice(1);
+  if (!s) s = fallback;
+  if (!/^[a-zA-Z1-9]/.test(s)) s = `A${s}`.slice(0, 16);
+  return s.slice(0, 16);
+}
+
+function normalizeEmail(email, fallback = 'na@example.com') {
+  const e = String(email || '').trim();
+  if (e.length >= 6 && e.length <= 100) return e;
+  return fallback;
+}
+
+function splitAddressLines(address) {
+  const cleaned = String(address || '').replace(/\s+/g, ' ').trim();
+  const parts = cleaned.split(',').map((p) => p.trim()).filter(Boolean);
+  let addr1 = (parts[0] || cleaned || 'NA.').slice(0, 100);
+  if (addr1.length < 3) addr1 = 'NA.';
+  let addr2 = parts.length > 1 ? parts.slice(1).join(', ') : '';
+  addr2 = (addr2 || addr1 || 'NA.').slice(0, 100);
+  if (addr2.length < 3) addr2 = 'NA.';
+  return { addr1, addr2 };
+}
+
 function logTaxProFailure(context, response, data) {
   const status = response?.status;
   let snippet = '';
@@ -399,45 +428,49 @@ function buildNicEInvoicePayload(invoiceData) {
 
   const sellerAddr = String(inv.company_address || 'Address');
   const buyerAddr = String(inv.customer_address || 'Address');
+  const sellerAddrLines = splitAddressLines(sellerAddr);
+  const buyerAddrLines = splitAddressLines(buyerAddr);
+  const ecmGstin = normalizeGstin(inv.ecom_gstin || inv.ecommerce_gstin || '');
+  const tranDtls = {
+    TaxSch: 'GST',
+    SupTyp: 'B2B',
+    RegRev: 'N',
+    IgstOnIntra: 'N',
+  };
+  if (ecmGstin.length === 15) tranDtls.EcmGstin = ecmGstin;
 
   return {
     Version: '1.1',
-    TranDtls: {
-      TaxSch: 'GST',
-      SupTyp: 'B2B',
-      RegRev: 'N',
-      EcmGstin: '',
-      IgstOnIntra: 'N',
-    },
+    TranDtls: tranDtls,
     DocDtls: {
       Typ: docTyp,
-      No: String(inv.invoice_number || ''),
+      No: sanitizeDocNumber(inv.invoice_number),
       Dt: formatDateDdMmYyyy(inv.invoice_date),
     },
     SellerDtls: {
       Gstin: userGstin,
       LglNm: (inv.company_name || 'Seller').substring(0, 100),
       TrdNm: (inv.company_name || 'Seller').substring(0, 100),
-      Addr1: sellerAddr.substring(0, 100),
-      Addr2: '',
+      Addr1: sellerAddrLines.addr1,
+      Addr2: sellerAddrLines.addr2,
       Loc: safeLocFromAddress(inv.company_address, 'City'),
       Pin: sellerPin,
       Stcd: sellerStateCode,
       Ph: digitsOnlyPhone(inv.company_phone),
-      Em: String(inv.company_email || '').substring(0, 100),
+      Em: normalizeEmail(inv.company_email),
     },
     BuyerDtls: {
       Gstin: rawBuyerGstin,
       LglNm: (inv.customer_name || 'Buyer').substring(0, 100),
       TrdNm: (inv.customer_name || 'Buyer').substring(0, 100),
       Pos: buyerStateCode,
-      Addr1: buyerAddr.substring(0, 100),
-      Addr2: '',
+      Addr1: buyerAddrLines.addr1,
+      Addr2: buyerAddrLines.addr2,
       Loc: safeLocFromAddress(inv.customer_address, 'City'),
       Pin: buyerPin,
       Stcd: buyerStateCode,
       Ph: digitsOnlyPhone(inv.customer_phone),
-      Em: String(inv.customer_email || '').substring(0, 100),
+      Em: normalizeEmail(inv.customer_email),
     },
     ItemList: itemList,
     ValDtls: {
