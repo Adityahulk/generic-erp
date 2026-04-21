@@ -767,7 +767,7 @@ function buildNicEwayBillPayload(invoice, items, transportArgs) {
       return (loc.length >= 3 ? loc : "City").substring(0, 50);
   };
 
-  return {
+  const payload = {
     supplyType: "O",
     subSupplyType: "1",
     docType: "INV",
@@ -799,10 +799,19 @@ function buildNicEwayBillPayload(invoice, items, transportArgs) {
     transDistance: "0",
     vehicleNo: String(transportArgs.vehicle_no || '').replace(/\s/g, '').toUpperCase().substring(0, 20),
     vehicleType: (transportArgs.vehicle_type || 'R').substring(0, 1).toUpperCase() === 'O' ? 'O' : 'R',
-    transporterId: String(transportArgs.transporter_id || '').trim().toUpperCase() || "",
-    transporterName: String(transportArgs.transporter_name || '').trim().substring(0, 100) || "",
     itemList: itemList
   };
+
+  const tId = String(transportArgs.transporter_id || '').trim().toUpperCase();
+  if (tId && tId.length > 2 && tId !== 'NULL' && tId !== 'NONE') {
+    payload.transporterId = tId;
+  }
+  const tName = String(transportArgs.transporter_name || '').trim();
+  if (tName) {
+    payload.transporterName = tName.substring(0, 100);
+  }
+
+  return payload;
 }
 
 async function generateEwayBill(_companyId, irn, transportArgs, userGstin, parties = {}, fullInvoiceData = null) {
